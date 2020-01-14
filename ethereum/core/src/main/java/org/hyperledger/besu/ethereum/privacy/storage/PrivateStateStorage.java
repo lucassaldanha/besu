@@ -14,9 +14,8 @@
  */
 package org.hyperledger.besu.ethereum.privacy.storage;
 
-import org.hyperledger.besu.ethereum.core.Log;
+import org.hyperledger.besu.ethereum.privacy.PrivateTransactionReceipt;
 
-import java.util.List;
 import java.util.Optional;
 
 import org.apache.tuweni.bytes.Bytes;
@@ -24,13 +23,7 @@ import org.apache.tuweni.bytes.Bytes32;
 
 public interface PrivateStateStorage {
 
-  Optional<List<Log>> getTransactionLogs(Bytes32 transactionHash);
-
-  Optional<Bytes> getTransactionOutput(Bytes32 transactionHash);
-
-  Optional<Bytes> getStatus(Bytes32 transactionHash);
-
-  Optional<Bytes> getRevertReason(Bytes32 transactionHash);
+  Optional<PrivateTransactionReceipt> getTransactionReceipt(Bytes blockHashTransactionHash);
 
   Optional<PrivateBlockMetadata> getPrivateBlockMetadata(Bytes32 blockHash, Bytes32 privacyGroupId);
 
@@ -44,13 +37,8 @@ public interface PrivateStateStorage {
 
   interface Updater {
 
-    Updater putTransactionLogs(Bytes32 transactionHash, List<Log> logs);
-
-    Updater putTransactionResult(Bytes32 transactionHash, Bytes events);
-
-    Updater putTransactionStatus(Bytes32 transactionHash, Bytes status);
-
-    Updater putTransactionRevertReason(Bytes32 txHash, Bytes bytesValue);
+    Updater putTransactionReceipt(
+        Bytes blockHashTransactionHash, PrivateTransactionReceipt receipt);
 
     Updater putPrivateBlockMetadata(
         Bytes32 blockHash, Bytes32 privacyGroupId, PrivateBlockMetadata metadata);

@@ -119,9 +119,7 @@ public class PrivacyPrecompiledContractTest {
         .thenReturn(storageUpdater);
     when(storageUpdater.putPrivacyGroupHeadBlockMap(nullable(Bytes32.class), any()))
         .thenReturn(storageUpdater);
-    when(storageUpdater.putTransactionLogs(nullable(Bytes32.class), any()))
-        .thenReturn(storageUpdater);
-    when(storageUpdater.putTransactionResult(nullable(Bytes32.class), any()))
+    when(storageUpdater.putTransactionReceipt(nullable(Bytes.class), any()))
         .thenReturn(storageUpdater);
     when(privateStateStorage.updater()).thenReturn(storageUpdater);
 
@@ -149,7 +147,9 @@ public class PrivacyPrecompiledContractTest {
 
     final ReceiveResponse response =
         new ReceiveResponse(
-            VALID_PRIVATE_TRANSACTION_RLP_BASE64, "8lDVI66RZHIrBsolz6Kn88Rd+WsJ4hUjb4hsh29xW/o=", null);
+            VALID_PRIVATE_TRANSACTION_RLP_BASE64,
+            "8lDVI66RZHIrBsolz6Kn88Rd+WsJ4hUjb4hsh29xW/o=",
+            null);
     when(enclave.receive(any(String.class))).thenReturn(response);
 
     final Bytes actual = contract.compute(key, messageFrame);

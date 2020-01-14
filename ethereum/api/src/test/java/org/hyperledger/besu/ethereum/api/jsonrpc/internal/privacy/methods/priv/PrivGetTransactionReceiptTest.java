@@ -46,6 +46,7 @@ import org.hyperledger.besu.ethereum.core.Transaction;
 import org.hyperledger.besu.ethereum.core.Wei;
 import org.hyperledger.besu.ethereum.privacy.PrivacyController;
 import org.hyperledger.besu.ethereum.privacy.PrivateTransaction;
+import org.hyperledger.besu.ethereum.privacy.PrivateTransactionReceipt;
 import org.hyperledger.besu.ethereum.privacy.Restriction;
 import org.hyperledger.besu.ethereum.privacy.storage.PrivateStateStorage;
 import org.hyperledger.besu.ethereum.rlp.RLP;
@@ -60,7 +61,6 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.ext.auth.User;
 import io.vertx.ext.auth.jwt.impl.JWTUser;
 import org.apache.tuweni.bytes.Bytes;
-import org.apache.tuweni.bytes.Bytes32;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -174,9 +174,8 @@ public class PrivGetTransactionReceiptTest {
 
     when(privacyParameters.isEnabled()).thenReturn(true);
     when(privacyParameters.getPrivateStateStorage()).thenReturn(privateStateStorage);
-    when(privateStateStorage.getTransactionLogs(any(Bytes32.class))).thenReturn(Optional.empty());
-    when(privateStateStorage.getTransactionOutput(any(Bytes32.class))).thenReturn(Optional.empty());
-    when(privateStateStorage.getStatus(any(Bytes32.class))).thenReturn(Optional.of(Bytes.of(1)));
+    when(privateStateStorage.getTransactionReceipt(any(Bytes.class)))
+        .thenReturn(Optional.of(PrivateTransactionReceipt.EMPTY));
   }
 
   @Test
@@ -255,8 +254,15 @@ public class PrivGetTransactionReceiptTest {
 
   @Test
   public void transactionReceiptContainsRevertReasonWhenInvalidTransactionOccurs() {
-    when(privateStateStorage.getRevertReason(any(Bytes32.class)))
-        .thenReturn(Optional.of(Bytes.fromHexString("0x01")));
+    @SuppressWarnings("unchecked")
+    final PrivateTransactionReceipt privateTransactionReceipt =
+        new PrivateTransactionReceipt(
+            1,
+            Collections.EMPTY_LIST,
+            Bytes.EMPTY,
+            Optional.of(Bytes.wrap(new byte[] {(byte) 0x01})));
+    when(privateStateStorage.getTransactionReceipt(any(Bytes.class)))
+        .thenReturn(Optional.of(privateTransactionReceipt));
 
     final PrivGetTransactionReceipt privGetTransactionReceipt =
         new PrivGetTransactionReceipt(
