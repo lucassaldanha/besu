@@ -129,7 +129,9 @@ public class PrivacyPrecompiledContract extends AbstractPrecompiledContract {
     final PrivateTransaction privateTransaction = PrivateTransaction.readFrom(bytesValueRLPInput);
     final WorldUpdater publicWorldState = messageFrame.getWorldState();
     final Bytes32 privacyGroupId =
-        Bytes32.wrap(Bytes.fromBase64String(receiveResponse.getPrivacyGroupId()));
+        privateTransaction.getPrivacyGroupId().isPresent()
+            ? Bytes32.wrap(privateTransaction.getPrivacyGroupId().get())
+            : Bytes32.wrap(Bytes.fromBase64String(receiveResponse.getPrivacyGroupId()));
 
     LOG.trace(
         "Processing private transaction {} in privacy group {}",
@@ -148,6 +150,7 @@ public class PrivacyPrecompiledContract extends AbstractPrecompiledContract {
         privateWorldStateArchive.getMutable(lastRootHash).get();
 
     final WorldUpdater privateWorldStateUpdater = disposablePrivateState.updater();
+
     final PrivateTransactionProcessor.Result result =
         privateTransactionProcessor.processTransaction(
             currentBlockchain,
