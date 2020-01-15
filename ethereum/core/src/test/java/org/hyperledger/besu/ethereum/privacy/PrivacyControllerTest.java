@@ -186,6 +186,7 @@ public class PrivacyControllerTest {
 
   @Test
   public void sendValidBesuTransaction() {
+
     final PrivateTransaction transaction = buildBesuPrivateTransaction(1);
 
     when(enclave.retrievePrivacyGroup(any(String.class)))
