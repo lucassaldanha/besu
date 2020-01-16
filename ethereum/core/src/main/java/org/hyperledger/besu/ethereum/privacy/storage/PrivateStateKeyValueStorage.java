@@ -16,13 +16,12 @@ package org.hyperledger.besu.ethereum.privacy.storage;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
-import org.hyperledger.besu.ethereum.core.Log;
+import org.hyperledger.besu.ethereum.privacy.PrivateTransactionReceipt;
 import org.hyperledger.besu.ethereum.rlp.BytesValueRLPInput;
 import org.hyperledger.besu.ethereum.rlp.RLP;
 import org.hyperledger.besu.plugin.services.storage.KeyValueStorage;
 import org.hyperledger.besu.plugin.services.storage.KeyValueStorageTransaction;
 
-import java.util.List;
 import java.util.Optional;
 
 import org.apache.tuweni.bytes.Bytes;
@@ -30,13 +29,8 @@ import org.apache.tuweni.bytes.Bytes32;
 
 public class PrivateStateKeyValueStorage implements PrivateStateStorage {
 
-  @Deprecated private static final Bytes EVENTS_KEY_SUFFIX = Bytes.of("EVENTS".getBytes(UTF_8));
-
-  private static final Bytes LOGS_KEY_SUFFIX = Bytes.of("LOGS".getBytes(UTF_8));
-  private static final Bytes OUTPUT_KEY_SUFFIX = Bytes.of("OUTPUT".getBytes(UTF_8));
+  private static final Bytes TX_RECEIPT_SUFFIX = Bytes.of("RECEIPT".getBytes(UTF_8));
   private static final Bytes METADATA_KEY_SUFFIX = Bytes.of("METADATA".getBytes(UTF_8));
-  private static final Bytes STATUS_KEY_SUFFIX = Bytes.of("STATUS".getBytes(UTF_8));
-  private static final Bytes REVERT_KEY_SUFFIX = Bytes.of("REVERT".getBytes(UTF_8));
   private static final Bytes PRIVACY_GROUP_HEAD_BLOCK_MAP_SUFFIX =
       Bytes.of("PGHEADMAP".getBytes(UTF_8));
 
@@ -47,27 +41,11 @@ public class PrivateStateKeyValueStorage implements PrivateStateStorage {
   }
 
   @Override
-  public Optional<List<Log>> getTransactionLogs(final Bytes32 transactionHash) {
-    final Optional<List<Log>> logs = get(transactionHash, LOGS_KEY_SUFFIX).map(this::rlpDecodeLog);
-    if (logs.isEmpty()) {
-      return get(transactionHash, EVENTS_KEY_SUFFIX).map(this::rlpDecodeLog);
-    }
-    return logs;
-  }
-
-  @Override
-  public Optional<Bytes> getTransactionOutput(final Bytes32 transactionHash) {
-    return get(transactionHash, OUTPUT_KEY_SUFFIX);
-  }
-
-  @Override
-  public Optional<Bytes> getStatus(final Bytes32 transactionHash) {
-    return get(transactionHash, STATUS_KEY_SUFFIX);
-  }
-
-  @Override
-  public Optional<Bytes> getRevertReason(final Bytes32 transactionHash) {
-    return get(transactionHash, REVERT_KEY_SUFFIX);
+  public Optional<PrivateTransactionReceipt> getTransactionReceipt(
+      final Bytes32 blockHash, final Bytes32 txHash) {
+    final Bytes blockHashTxHash = Bytes.concatenate(blockHash, txHash);
+    return get(blockHashTxHash, TX_RECEIPT_SUFFIX)
+        .map(b -> PrivateTransactionReceipt.readFrom(new BytesValueRLPInput(b, false)));
   }
 
   @Override
@@ -97,10 +75,6 @@ public class PrivateStateKeyValueStorage implements PrivateStateStorage {
     return keyValueStorage.get(Bytes.concatenate(key, keySuffix).toArrayUnsafe()).map(Bytes::wrap);
   }
 
-  private List<Log> rlpDecodeLog(final Bytes bytes) {
-    return RLP.input(bytes).readList(Log::readFrom);
-  }
-
   private PrivateBlockMetadata rlpDecodePrivateBlockMetadata(final Bytes bytes) {
     return PrivateBlockMetadata.readFrom(RLP.input(bytes));
   }
@@ -119,28 +93,12 @@ public class PrivateStateKeyValueStorage implements PrivateStateStorage {
     }
 
     @Override
-    public Updater putTransactionLogs(final Bytes32 transactionHash, final List<Log> logs) {
-      set(transactionHash, LOGS_KEY_SUFFIX, RLP.encode(out -> out.writeList(logs, Log::writeTo)));
-      return this;
-    }
-
-    @Override
-    public Updater putTransactionResult(final Bytes32 transactionHash, final Bytes events) {
-      set(transactionHash, OUTPUT_KEY_SUFFIX, events);
-      return this;
-    }
-
-    @Override
-    public PrivateStateStorage.Updater putTransactionStatus(
-        final Bytes32 transactionHash, final Bytes status) {
-      set(transactionHash, STATUS_KEY_SUFFIX, status);
-      return this;
-    }
-
-    @Override
-    public PrivateStateStorage.Updater putTransactionRevertReason(
-        final Bytes32 transactionHash, final Bytes revertReason) {
-      set(transactionHash, REVERT_KEY_SUFFIX, revertReason);
+    public PrivateStateStorage.Updater putTransactionReceipt(
+        final Bytes32 blockHash,
+        final Bytes32 transactionHash,
+        final PrivateTransactionReceipt receipt) {
+      final Bytes blockHashTxHash = Bytes.concatenate(blockHash, transactionHash);
+      set(blockHashTxHash, TX_RECEIPT_SUFFIX, RLP.encode(receipt::writeTo));
       return this;
     }
 
