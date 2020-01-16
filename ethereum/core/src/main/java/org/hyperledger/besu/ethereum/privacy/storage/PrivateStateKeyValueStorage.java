@@ -41,7 +41,9 @@ public class PrivateStateKeyValueStorage implements PrivateStateStorage {
   }
 
   @Override
-  public Optional<PrivateTransactionReceipt> getTransactionReceipt(final Bytes blockHashTxHash) {
+  public Optional<PrivateTransactionReceipt> getTransactionReceipt(
+      final Bytes32 blockHash, final Bytes32 txHash) {
+    final Bytes blockHashTxHash = Bytes.concatenate(blockHash, txHash);
     return get(blockHashTxHash, TX_RECEIPT_SUFFIX)
         .map(b -> PrivateTransactionReceipt.readFrom(new BytesValueRLPInput(b, false)));
   }
@@ -92,8 +94,11 @@ public class PrivateStateKeyValueStorage implements PrivateStateStorage {
 
     @Override
     public PrivateStateStorage.Updater putTransactionReceipt(
-        final Bytes blockHashTransactionHash, final PrivateTransactionReceipt receipt) {
-      set(blockHashTransactionHash, TX_RECEIPT_SUFFIX, RLP.encode(receipt::writeTo));
+        final Bytes32 blockHash,
+        final Bytes32 transactionHash,
+        final PrivateTransactionReceipt receipt) {
+      final Bytes blockHashTxHash = Bytes.concatenate(blockHash, transactionHash);
+      set(blockHashTxHash, TX_RECEIPT_SUFFIX, RLP.encode(receipt::writeTo));
       return this;
     }
 

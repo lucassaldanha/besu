@@ -124,12 +124,11 @@ public class PrivGetTransactionReceipt implements JsonRpcMethod {
     final Bytes rlpEncoded = RLP.encode(privateTransaction::writeTo);
     final Bytes32 txHash = org.hyperledger.besu.crypto.Hash.keccak256(rlpEncoded);
     LOG.trace("Calculated private transaction hash: {}", txHash);
-    final Bytes blockHashTxHash = Bytes.concatenate(blockhash, txHash);
 
     final PrivateTransactionReceipt privateTransactioReceipt =
         privacyParameters
             .getPrivateStateStorage()
-            .getTransactionReceipt(blockHashTxHash)
+            .getTransactionReceipt(blockhash, txHash)
             .orElse(PrivateTransactionReceipt.EMPTY);
 
     LOG.trace("Processed private transaction receipt");

@@ -18,12 +18,11 @@ import org.hyperledger.besu.ethereum.privacy.PrivateTransactionReceipt;
 
 import java.util.Optional;
 
-import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 
 public interface PrivateStateStorage {
 
-  Optional<PrivateTransactionReceipt> getTransactionReceipt(Bytes blockHashTransactionHash);
+  Optional<PrivateTransactionReceipt> getTransactionReceipt(Bytes32 blockHash, Bytes32 txHash);
 
   Optional<PrivateBlockMetadata> getPrivateBlockMetadata(Bytes32 blockHash, Bytes32 privacyGroupId);
 
@@ -38,7 +37,7 @@ public interface PrivateStateStorage {
   interface Updater {
 
     Updater putTransactionReceipt(
-        Bytes blockHashTransactionHash, PrivateTransactionReceipt receipt);
+        Bytes32 blockHash, Bytes32 transactionHash, PrivateTransactionReceipt receipt);
 
     Updater putPrivateBlockMetadata(
         Bytes32 blockHash, Bytes32 privacyGroupId, PrivateBlockMetadata metadata);

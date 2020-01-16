@@ -35,7 +35,7 @@ public class PrivateTransactionReceipt {
   @SuppressWarnings("unchecked")
   public static final PrivateTransactionReceipt EMPTY =
       new PrivateTransactionReceipt(
-          0, Collections.EMPTY_LIST, Bytes.EMPTY, Optional.of(Bytes.EMPTY));
+          0, Collections.EMPTY_LIST, Bytes.EMPTY, Optional.ofNullable(null));
 
   private final int status;
   private final List<Log> logs;

@@ -149,9 +149,8 @@ public class PrivacyPrecompiledContractIntegrationTest {
     when(storageUpdater.putPrivateBlockMetadata(
             nullable(Bytes32.class), nullable(Bytes32.class), any()))
         .thenReturn(storageUpdater);
-    when(storageUpdater.putTransactionLogs(nullable(Bytes32.class), any()))
-        .thenReturn(storageUpdater);
-    when(storageUpdater.putTransactionResult(nullable(Bytes32.class), any()))
+    when(storageUpdater.putTransactionReceipt(
+            nullable(Bytes32.class), nullable(Bytes32.class), any()))
         .thenReturn(storageUpdater);
     when(privateStateStorage.updater()).thenReturn(storageUpdater);
   }

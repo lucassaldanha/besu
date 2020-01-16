@@ -186,7 +186,6 @@ public class PrivacyPrecompiledContract extends AbstractPrecompiledContract {
           privateStateUpdater);
 
       final Bytes32 txHash = keccak256(RLP.encode(privateTransaction::writeTo));
-      final Bytes blockHashTxHash = Bytes.concatenate(currentBlockHash, txHash);
 
       final int txStatus =
           result.getStatus() == PrivateTransactionProcessor.Result.Status.SUCCESSFUL ? 1 : 0;
@@ -195,7 +194,8 @@ public class PrivacyPrecompiledContract extends AbstractPrecompiledContract {
           new PrivateTransactionReceipt(
               txStatus, result.getLogs(), result.getOutput(), result.getRevertReason());
 
-      privateStateUpdater.putTransactionReceipt(blockHashTxHash, privateTransactionReceipt);
+      privateStateUpdater.putTransactionReceipt(
+          currentBlockHash, txHash, privateTransactionReceipt);
 
       // TODO: this map could be passed through from @PrivacyBlockProcessor and saved once at the
       // end of block processing

@@ -119,7 +119,8 @@ public class PrivacyPrecompiledContractTest {
         .thenReturn(storageUpdater);
     when(storageUpdater.putPrivacyGroupHeadBlockMap(nullable(Bytes32.class), any()))
         .thenReturn(storageUpdater);
-    when(storageUpdater.putTransactionReceipt(nullable(Bytes.class), any()))
+    when(storageUpdater.putTransactionReceipt(
+            nullable(Bytes32.class), nullable(Bytes32.class), any()))
         .thenReturn(storageUpdater);
     when(privateStateStorage.updater()).thenReturn(storageUpdater);
 

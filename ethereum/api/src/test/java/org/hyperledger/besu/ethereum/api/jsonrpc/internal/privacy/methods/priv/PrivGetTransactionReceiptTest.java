@@ -61,6 +61,7 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.ext.auth.User;
 import io.vertx.ext.auth.jwt.impl.JWTUser;
 import org.apache.tuweni.bytes.Bytes;
+import org.apache.tuweni.bytes.Bytes32;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -174,8 +175,12 @@ public class PrivGetTransactionReceiptTest {
 
     when(privacyParameters.isEnabled()).thenReturn(true);
     when(privacyParameters.getPrivateStateStorage()).thenReturn(privateStateStorage);
-    when(privateStateStorage.getTransactionReceipt(any(Bytes.class)))
-        .thenReturn(Optional.of(PrivateTransactionReceipt.EMPTY));
+    @SuppressWarnings("unchecked")
+    final PrivateTransactionReceipt receipt =
+        new PrivateTransactionReceipt(
+            1, Collections.EMPTY_LIST, Bytes.EMPTY, Optional.ofNullable(null));
+    when(privateStateStorage.getTransactionReceipt(any(Bytes32.class), any(Bytes32.class)))
+        .thenReturn(Optional.of(receipt));
   }
 
   @Test
@@ -261,7 +266,7 @@ public class PrivGetTransactionReceiptTest {
             Collections.EMPTY_LIST,
             Bytes.EMPTY,
             Optional.of(Bytes.wrap(new byte[] {(byte) 0x01})));
-    when(privateStateStorage.getTransactionReceipt(any(Bytes.class)))
+    when(privateStateStorage.getTransactionReceipt(any(Bytes32.class), any(Bytes32.class)))
         .thenReturn(Optional.of(privateTransactionReceipt));
 
     final PrivGetTransactionReceipt privGetTransactionReceipt =
