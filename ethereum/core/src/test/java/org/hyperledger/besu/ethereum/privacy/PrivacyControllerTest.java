@@ -16,6 +16,8 @@ package org.hyperledger.besu.ethereum.privacy;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.hyperledger.besu.ethereum.mainnet.TransactionValidator.TransactionInvalidReason.INCORRECT_PRIVATE_NONCE;
@@ -39,6 +41,7 @@ import org.hyperledger.besu.enclave.types.ReceiveResponse;
 import org.hyperledger.besu.enclave.types.SendResponse;
 import org.hyperledger.besu.ethereum.chain.Blockchain;
 import org.hyperledger.besu.ethereum.core.Address;
+import org.hyperledger.besu.ethereum.core.BlockHeader;
 import org.hyperledger.besu.ethereum.core.Hash;
 import org.hyperledger.besu.ethereum.core.Transaction;
 import org.hyperledger.besu.ethereum.core.Wei;
@@ -47,7 +50,9 @@ import org.hyperledger.besu.ethereum.mainnet.TransactionValidator.TransactionInv
 import org.hyperledger.besu.ethereum.mainnet.ValidationResult;
 import org.hyperledger.besu.ethereum.privacy.markertransaction.FixedKeySigningPrivateMarkerTransactionFactory;
 import org.hyperledger.besu.ethereum.privacy.storage.PrivacyGroupHeadBlockMap;
+import org.hyperledger.besu.ethereum.privacy.storage.PrivateBlockMetadata;
 import org.hyperledger.besu.ethereum.privacy.storage.PrivateStateStorage;
+import org.hyperledger.besu.ethereum.privacy.storage.PrivateTransactionMetadata;
 import org.hyperledger.orion.testutil.OrionKeyUtils;
 
 import java.math.BigInteger;
@@ -298,6 +303,35 @@ public class PrivacyControllerTest {
     assertThat(receiveResponse.getPayload()).isEqualTo(PAYLOAD);
     assertThat(receiveResponse.getPrivacyGroupId()).isEqualTo(PRIVACY_GROUP_ID);
     verify(enclave).receive(TRANSACTION_KEY, enclavePublicKey);
+  }
+
+  @Test
+  public void buildsTransactionListForPrivacyGroup() {
+    when(blockchain.getChainHeadHash()).thenReturn(Hash.ZERO);
+    when(blockchain.getBlockHeader(any(Hash.class)))
+        .thenReturn(
+            Optional.of(
+                new BlockHeader(
+                    Hash.ZERO, null, null, null, null, null, null, null, 0, 0, 0, 0, null, null, 0,
+                    null)));
+    when(privateStateStorage.getPrivacyGroupHeadBlockMap(any(Hash.class)))
+        .thenReturn(
+            Optional.of(
+                new PrivacyGroupHeadBlockMap(
+                    singletonMap(
+                        Bytes32.wrap(Bytes.fromBase64String(PRIVACY_GROUP_ID)), Hash.ZERO))));
+    when(privateStateStorage.getPrivateBlockMetadata(any(Bytes32.class), any(Bytes32.class)))
+        .thenReturn(Optional.of(new PrivateBlockMetadata(singletonList(new PrivateTransactionMetadata(Hash.ZERO, Hash.ZERO)))));
+    final List<Hash> privacyGroupMarkerTransactions =
+        privacyController.buildTransactionList(
+            Bytes32.wrap(Bytes.fromBase64String(PRIVACY_GROUP_ID)));
+
+    assertThat(privacyGroupMarkerTransactions.size()).isEqualTo(2);
+    assertThat(privacyGroupMarkerTransactions.get(0)).isEqualTo(Hash.ZERO);
+    assertThat(privacyGroupMarkerTransactions.get(1)).isEqualTo(Hash.ZERO);
+    verify(privateStateStorage)
+        .getPrivateBlockMetadata(
+            any(Bytes32.class), eq(Bytes32.wrap(Bytes.fromBase64String(PRIVACY_GROUP_ID))));
   }
 
   @Test
