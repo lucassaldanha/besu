@@ -58,7 +58,7 @@ public class OnChainPrivacyAcceptanceTest extends PrivacyAcceptanceTestBase {
 
     assertThat(privxCreatePrivacyGroup).isNotNull();
 
-    final PrivacyGroup expected =
+    final PrivacyGroup expectedGroup =
         new PrivacyGroup(
             privxCreatePrivacyGroup.getPrivacyGroupId(),
             PrivacyGroup.Type.PANTHEON,
@@ -66,9 +66,9 @@ public class OnChainPrivacyAcceptanceTest extends PrivacyAcceptanceTestBase {
             "",
             Base64String.wrapList(alice.getEnclaveKey(), bob.getEnclaveKey()));
 
-    alice.verify(privateTransactionVerifier.validOnPrivacyGroupCreated(expected));
+    alice.verify(privateTransactionVerifier.validOnPrivacyGroupCreated(expectedGroup));
 
-    bob.verify(privateTransactionVerifier.validOnPrivacyGroupCreated(expected));
+    bob.verify(privateTransactionVerifier.validOnPrivacyGroupCreated(expectedGroup));
 
     final String rlpParticipants =
         alice.execute(
@@ -81,28 +81,34 @@ public class OnChainPrivacyAcceptanceTest extends PrivacyAcceptanceTestBase {
                 alice.getEnclaveKey(),
                 privxCreatePrivacyGroup.getPrivacyGroupId()));
 
+    final PrivateTransactionReceipt expectedReceipt =
+        new PrivateTransactionReceipt(
+            null,
+            "0xfe3b557e8fb62b89f4916b721be55ceb828dbd73",
+            "0x000000000000000000000000000000000000007c",
+            "0x0000000000000000000000000000000000000000000000000000000000000020" // dynamic
+                // array offset
+                + "0000000000000000000000000000000000000000000000000000000000000002" // length
+                // of array
+                + Bytes.fromBase64String(alice.getEnclaveKey()).toUnprefixedHexString() // first
+                // element
+                + Bytes.fromBase64String(bob.getEnclaveKey()).toUnprefixedHexString(), // second
+            // element
+            Collections.emptyList(),
+            null,
+            null,
+            "A1aVtMxLCUHmBVHXoZzzBgPbW/wj5axDpW9X8l91SGo=",
+            null,
+            privxCreatePrivacyGroup.getPrivacyGroupId(),
+            "0x1",
+            null);
+
     alice.verify(
         privateTransactionVerifier.validPrivateTransactionReceipt(
-            rlpParticipants,
-            new PrivateTransactionReceipt(
-                null,
-                "0xfe3b557e8fb62b89f4916b721be55ceb828dbd73",
-                "0x000000000000000000000000000000000000007c",
-                "0x0000000000000000000000000000000000000000000000000000000000000020" // dynamic
-                    // array offset
-                    + "0000000000000000000000000000000000000000000000000000000000000002" // length
-                    // of array
-                    + Bytes.fromBase64String(alice.getEnclaveKey()).toUnprefixedHexString() // first
-                    // element
-                    + Bytes.fromBase64String(bob.getEnclaveKey()).toUnprefixedHexString(), // second
-                // element
-                Collections.emptyList(),
-                null,
-                null,
-                "A1aVtMxLCUHmBVHXoZzzBgPbW/wj5axDpW9X8l91SGo=",
-                null,
-                privxCreatePrivacyGroup.getPrivacyGroupId(),
-                "0x1",
-                null)));
+            rlpParticipants, expectedReceipt));
+
+    bob.verify(
+        privateTransactionVerifier.validPrivateTransactionReceipt(
+            rlpParticipants, expectedReceipt));
   }
 }
