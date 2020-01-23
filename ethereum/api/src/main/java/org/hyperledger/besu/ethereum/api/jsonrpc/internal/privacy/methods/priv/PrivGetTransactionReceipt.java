@@ -18,6 +18,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.logging.log4j.LogManager.getLogger;
 
 import org.hyperledger.besu.enclave.EnclaveClientException;
+import org.hyperledger.besu.enclave.types.PrivacyGroup;
 import org.hyperledger.besu.enclave.types.ReceiveResponse;
 import org.hyperledger.besu.ethereum.api.jsonrpc.JsonRpcEnclaveErrorConverter;
 import org.hyperledger.besu.ethereum.api.jsonrpc.RpcMethod;
@@ -105,7 +106,23 @@ public class PrivGetTransactionReceipt implements JsonRpcMethod {
               Bytes.fromBase64String(new String(receiveResponse.getPayload(), UTF_8)), false);
 
       privateTransaction = PrivateTransaction.readFrom(input);
-      privacyGroupId = receiveResponse.getPrivacyGroupId();
+      if (privateTransaction.getPrivacyGroupId().isPresent()) {
+        PrivacyGroup privacyGroup = null;
+        try {
+          privacyGroup =
+                  privacyController.retrievePrivacyGroup(
+                          privateTransaction.getPrivacyGroupId().get().toBase64String());
+        } catch (final EnclaveClientException e) {
+          // it is an onchain group
+        }
+        if (privacyGroup == null) {
+          privacyGroupId = privateTransaction.getPrivacyGroupId().get().toBase64String();
+        } else {
+          privacyGroupId = receiveResponse.getPrivacyGroupId();
+        }
+      } else {
+        privacyGroupId = receiveResponse.getPrivacyGroupId();
+      }
     } catch (final EnclaveClientException e) {
       return handleEnclaveException(requestContext, e);
     }
