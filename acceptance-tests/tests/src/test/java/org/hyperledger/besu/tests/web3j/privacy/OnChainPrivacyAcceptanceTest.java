@@ -16,11 +16,14 @@ package org.hyperledger.besu.tests.web3j.privacy;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import org.hyperledger.besu.crypto.SecureRandomProvider;
 import org.hyperledger.besu.ethereum.core.Address;
 import org.hyperledger.besu.tests.acceptance.dsl.privacy.PrivacyAcceptanceTestBase;
 import org.hyperledger.besu.tests.acceptance.dsl.privacy.PrivacyNode;
 import org.hyperledger.besu.tests.acceptance.dsl.transaction.privacy.PrivacyRequestFactory.PrivxCreatePrivacyGroup;
+import org.hyperledger.besu.tests.web3j.generated.EventEmitter;
 
+import java.security.SecureRandom;
 import java.util.Collections;
 
 import org.apache.tuweni.bytes.Bytes;
@@ -110,5 +113,27 @@ public class OnChainPrivacyAcceptanceTest extends PrivacyAcceptanceTestBase {
     bob.verify(
         privateTransactionVerifier.validPrivateTransactionReceipt(
             rlpParticipants, expectedReceipt));
+  }
+
+  @Test
+  public void deployingMustGiveValidReceipt() {
+    final SecureRandom secureRandom = SecureRandomProvider.createSecureRandom();
+    final byte[] bytes = new byte[32];
+    secureRandom.nextBytes(bytes);
+    final Bytes privacyGroupId = Bytes.wrap(bytes);
+
+    final EventEmitter eventEmitter =
+        alice.execute(
+            privateContractTransactions.createSmartContractWithPrivacyGroupId(
+                EventEmitter.class,
+                alice.getTransactionSigningKey(),
+                POW_CHAIN_ID,
+                alice.getEnclaveKey(),
+                privacyGroupId.toBase64String()));
+
+    privateContractVerifier
+        .validPrivateContractDeployed(
+            eventEmitter.getContractAddress(), alice.getAddress().toString())
+        .verify(eventEmitter);
   }
 }

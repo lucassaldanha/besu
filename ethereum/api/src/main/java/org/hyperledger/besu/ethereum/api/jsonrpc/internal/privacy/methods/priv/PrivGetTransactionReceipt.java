@@ -110,8 +110,8 @@ public class PrivGetTransactionReceipt implements JsonRpcMethod {
         PrivacyGroup privacyGroup = null;
         try {
           privacyGroup =
-                  privacyController.retrievePrivacyGroup(
-                          privateTransaction.getPrivacyGroupId().get().toBase64String());
+              privacyController.retrievePrivacyGroup(
+                  privateTransaction.getPrivacyGroupId().get().toBase64String());
         } catch (final EnclaveClientException e) {
           // it is an onchain group
         }
