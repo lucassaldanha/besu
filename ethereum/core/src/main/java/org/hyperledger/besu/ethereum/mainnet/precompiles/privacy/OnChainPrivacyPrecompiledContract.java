@@ -51,6 +51,8 @@ import org.hyperledger.besu.ethereum.vm.MessageFrame;
 import org.hyperledger.besu.ethereum.worldstate.WorldStateArchive;
 
 import java.util.Base64;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -120,7 +122,17 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
     }
     final Hash currentBlockHash = ((BlockHeader) currentBlockHeader).getHash();
 
-    final String key = input.toBase64String();
+    final String key;
+    final String addKey;
+    if (input.size() == 32) {
+      key = input.toBase64String();
+      addKey = null;
+    } else if (input.size() == 64) {
+      key = input.slice(0, 32).toBase64String();
+      addKey = input.slice(32, 32).toBase64String();
+    } else {
+      throw new RuntimeException();
+    }
 
     final ReceiveResponse receiveResponse;
     try {
@@ -181,6 +193,36 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
       // manually set the management contract address so the proxy can trust it
       mutableProxyPrecompiled.setStorageValue(
           UInt256.ZERO, UInt256.fromBytes(Bytes32.leftPad(Address.DEFAULT_PRIVACY_MANAGEMENT)));
+    }
+
+    if (addKey != null && privacyGroupHeadBlockMap.get(privacyGroupId) == null) {
+      final ReceiveResponse addRecieveResponse;
+      try {
+        addRecieveResponse = enclave.receive(addKey);
+        final Map<Hash, PrivateTransaction> hashPrivateTransactionMap = deserializeAddToGroupPayload(Bytes.wrap(Base64.getDecoder().decode(addRecieveResponse.getPayload())));
+        hashPrivateTransactionMap.values().forEach(pt -> {
+          final PrivateTransactionProcessor.Result result =
+                  privateTransactionProcessor.processTransaction(
+                          currentBlockchain,
+                          publicWorldState,
+                          privateWorldStateUpdater,
+                          currentBlockHeader,
+                          pt,
+                          messageFrame.getMiningBeneficiary(),
+                          new DebugOperationTracer(TraceOptions.DEFAULT),
+                          messageFrame.getBlockHashLookup(),
+                          privacyGroupId);
+        });
+      } catch (final EnclaveClientException e) {
+        LOG.debug("Can not fetch private transaction payload with key {}", key, e);
+        return Bytes.EMPTY;
+      } catch (final EnclaveServerException e) {
+        LOG.error("Enclave is responding but errored perhaps it has a misconfiguration?", e);
+        throw e;
+      } catch (final EnclaveIOException e) {
+        LOG.error("Can not communicate with enclave is it up?", e);
+        throw e;
+      }
     }
 
     final PrivateTransactionProcessor.Result result =
@@ -260,4 +302,23 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
     privateStateUpdater.putPrivateBlockMetadata(
         Bytes32.wrap(currentBlockHash), Bytes32.wrap(privacyGroupId), privateBlockMetadata);
   }
+
+  private Map<Hash, PrivateTransaction> deserializeAddToGroupPayload(
+          final Bytes encodedAddToGroupPayload) {
+    final HashMap<Hash, PrivateTransaction> deserializedResponse = new HashMap<>();
+    final BytesValueRLPInput bytesValueRLPInput =
+            new BytesValueRLPInput(encodedAddToGroupPayload, false);
+    final int noOfEntries = bytesValueRLPInput.enterList();
+    for (int i = 0; i < noOfEntries; i++) {
+      bytesValueRLPInput.enterList();
+      final Hash privacyMarkerTransactionHash = Hash.wrap(bytesValueRLPInput.readBytes32());
+      final PrivateTransaction privateTransaction =
+              PrivateTransaction.readFrom(bytesValueRLPInput.readAsRlp());
+      deserializedResponse.put(privacyMarkerTransactionHash, privateTransaction);
+      bytesValueRLPInput.leaveList();
+    }
+    bytesValueRLPInput.leaveList();
+    return deserializedResponse;
+  }
+
 }

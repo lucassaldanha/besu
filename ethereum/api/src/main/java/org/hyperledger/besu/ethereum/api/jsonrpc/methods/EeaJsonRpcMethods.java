@@ -24,6 +24,7 @@ import org.hyperledger.besu.ethereum.api.query.BlockchainQueries;
 import org.hyperledger.besu.ethereum.core.PrivacyParameters;
 import org.hyperledger.besu.ethereum.eth.transactions.TransactionPool;
 import org.hyperledger.besu.ethereum.mainnet.ProtocolSchedule;
+import org.hyperledger.besu.ethereum.privacy.OnChainPrivacyController;
 import org.hyperledger.besu.ethereum.privacy.PrivacyController;
 import org.hyperledger.besu.ethereum.privacy.PrivateTransactionSimulator;
 
@@ -42,11 +43,15 @@ public class EeaJsonRpcMethods extends PrivacyApiGroupJsonRpcMethods {
   @Override
   protected Map<String, JsonRpcMethod> create(
       final PrivacyController privacyController,
+      final OnChainPrivacyController onChainPrivacyController,
       final EnclavePublicKeyProvider enclavePublicKeyProvider,
       final PrivateTransactionSimulator privateTransactionSimulator) {
     return mapOf(
         new EeaSendRawTransaction(
-            getTransactionPool(), privacyController, enclavePublicKeyProvider),
+            getTransactionPool(),
+            privacyController,
+            onChainPrivacyController,
+            enclavePublicKeyProvider),
         new PrivGetEeaTransactionCount(privacyController, enclavePublicKeyProvider));
   }
 

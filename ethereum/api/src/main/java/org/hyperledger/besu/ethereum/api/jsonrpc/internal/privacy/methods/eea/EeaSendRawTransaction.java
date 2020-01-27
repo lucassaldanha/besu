@@ -28,11 +28,18 @@ import org.hyperledger.besu.ethereum.api.jsonrpc.internal.response.JsonRpcErrorR
 import org.hyperledger.besu.ethereum.api.jsonrpc.internal.response.JsonRpcResponse;
 import org.hyperledger.besu.ethereum.api.jsonrpc.internal.response.JsonRpcSuccessResponse;
 import org.hyperledger.besu.ethereum.core.Address;
+import org.hyperledger.besu.ethereum.core.Hash;
 import org.hyperledger.besu.ethereum.core.Transaction;
 import org.hyperledger.besu.ethereum.eth.transactions.TransactionPool;
+import org.hyperledger.besu.ethereum.privacy.OnChainPrivacyController;
 import org.hyperledger.besu.ethereum.privacy.PrivacyController;
 import org.hyperledger.besu.ethereum.privacy.PrivateTransaction;
 import org.hyperledger.besu.ethereum.privacy.SendTransactionResponse;
+
+import java.util.List;
+
+import org.apache.tuweni.bytes.Bytes;
+import org.apache.tuweni.bytes.Bytes32;
 
 public class EeaSendRawTransaction implements JsonRpcMethod {
 
@@ -40,13 +47,16 @@ public class EeaSendRawTransaction implements JsonRpcMethod {
   private final EnclavePublicKeyProvider enclavePublicKeyProvider;
   private final TransactionPool transactionPool;
   private final PrivacyController privacyController;
+  private final OnChainPrivacyController onChainPrivacyController;
 
   public EeaSendRawTransaction(
       final TransactionPool transactionPool,
       final PrivacyController privacyController,
+      final OnChainPrivacyController onChainPrivacyController,
       final EnclavePublicKeyProvider enclavePublicKeyProvider) {
     this.transactionPool = transactionPool;
     this.privacyController = privacyController;
+    this.onChainPrivacyController = onChainPrivacyController;
     this.privacySendTransaction =
         new PrivacySendTransaction(privacyController, enclavePublicKeyProvider);
     this.enclavePublicKeyProvider = enclavePublicKeyProvider;
@@ -64,6 +74,29 @@ public class EeaSendRawTransaction implements JsonRpcMethod {
       privateTransaction = privacySendTransaction.validateAndDecodeRequest(requestContext);
     } catch (final ErrorResponseException e) {
       return e.getResponse();
+    }
+
+    final String addPayloadEnclaveKey;
+    if (privacyController.isGroupAdditionTransaction(privateTransaction)) {
+      final List<Hash> hashes =
+          onChainPrivacyController.buildTransactionList(
+              Bytes32.wrap(privateTransaction.getPrivacyGroupId().get()));
+      if (hashes.size() > 0) {
+        final List<PrivateTransaction> privateTransactions =
+                onChainPrivacyController.retrievePrivateTransactions(
+                        hashes, enclavePublicKeyProvider.getEnclaveKey(requestContext.getUser()));
+        final Bytes bytes =
+                onChainPrivacyController.serializeAddToGroupPayload(hashes, privateTransactions);
+        addPayloadEnclaveKey =
+                privacyController.sendAddPayload(
+                        bytes.toBase64String(),
+                        enclavePublicKeyProvider.getEnclaveKey(requestContext.getUser()),
+                        privateTransaction);
+      } else {
+        addPayloadEnclaveKey = null;
+      }
+    } else {
+      addPayloadEnclaveKey = null;
     }
 
     final SendTransactionResponse sendTransactionResponse;
@@ -97,8 +130,7 @@ public class EeaSendRawTransaction implements JsonRpcMethod {
                     .getMembers()
                     .contains(enclavePublicKeyProvider.getEnclaveKey(requestContext.getUser()))) {
               privacyMarkerTransaction =
-                  privacyController.createPrivacyMarkerTransaction(
-                      sendTransactionResponse.getEnclaveKey(),
+                  privacyController.createPrivacyMarkerTransaction(buildCompoundKey(sendTransactionResponse.getEnclaveKey(), addPayloadEnclaveKey),
                       privateTransaction,
                       Address.ONCHAIN_PRIVACY);
             } else {
@@ -123,5 +155,9 @@ public class EeaSendRawTransaction implements JsonRpcMethod {
                           requestContext.getRequest().getId(),
                           JsonRpcErrorConverter.convertTransactionInvalidReason(errorReason)));
         });
+  }
+
+  private String buildCompoundKey(final String enclaveKey, final String addPayloadEnclaveKey) {
+    return addPayloadEnclaveKey != null ? Bytes.concatenate(Bytes.fromBase64String(enclaveKey), Bytes.fromBase64String(addPayloadEnclaveKey)).toBase64String() : enclaveKey;
   }
 }

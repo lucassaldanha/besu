@@ -36,6 +36,11 @@ public class PrivacyTransactions {
     return new CreateOnChainPrivacyGroupTransaction(creator, nodes);
   }
 
+  public AddToOnChainPrivacyGroupTransaction addToPrivacyGroup(
+      final String privacyGroupId, final PrivacyNode adder, final PrivacyNode... nodes) {
+    return new AddToOnChainPrivacyGroupTransaction(privacyGroupId, adder, nodes);
+  }
+
   public FindPrivacyGroupTransaction findPrivacyGroup(final List<String> nodes) {
     return new FindPrivacyGroupTransaction(nodes);
   }

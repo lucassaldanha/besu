@@ -249,6 +249,14 @@ public class PrivacyController {
     return enclave.send(payload, privateTransaction.getPrivateFrom().toBase64String(), privateFor);
   }
 
+  public String sendAddPayload(
+      final String payload,
+      final String enclavePublicKey,
+      final PrivateTransaction privateTransaction) {
+    final List<String> privateFor = getParticipantsFromParameter(privateTransaction.getPayload());
+    return enclave.send(payload, enclavePublicKey, privateFor).getKey();
+  }
+
   private List<String> resolvePrivateFor(
       final PrivateTransaction privateTransaction, final String enclavePublicKey) {
     final ArrayList<String> privateFor = new ArrayList<>();
@@ -269,7 +277,7 @@ public class PrivacyController {
     return privateFor;
   }
 
-  private boolean isGroupAdditionTransaction(final PrivateTransaction privateTransaction) {
+  public boolean isGroupAdditionTransaction(final PrivateTransaction privateTransaction) {
     return privateTransaction.getTo().isPresent()
         && privateTransaction.getTo().get().equals(Address.PRIVACY_PROXY)
         && privateTransaction.getPayload().toHexString().startsWith(ADD_TO_GROUP_METHOD_SIGNATURE);

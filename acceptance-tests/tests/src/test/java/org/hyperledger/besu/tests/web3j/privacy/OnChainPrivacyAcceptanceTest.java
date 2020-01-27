@@ -136,4 +136,60 @@ public class OnChainPrivacyAcceptanceTest extends PrivacyAcceptanceTestBase {
             eventEmitter.getContractAddress(), alice.getAddress().toString())
         .verify(eventEmitter);
   }
+
+  @Test
+  public void canAddParticipantToGroup() {
+    final PrivxCreatePrivacyGroup privxCreatePrivacyGroup =
+        alice.execute(privacyTransactions.createOnChainPrivacyGroup(alice, alice, bob));
+
+    assertThat(privxCreatePrivacyGroup).isNotNull();
+
+    final PrivacyGroup expectedGroup =
+        new PrivacyGroup(
+            privxCreatePrivacyGroup.getPrivacyGroupId(),
+            PrivacyGroup.Type.PANTHEON,
+            "",
+            "",
+            Base64String.wrapList(alice.getEnclaveKey(), bob.getEnclaveKey()));
+
+    alice.verify(privateTransactionVerifier.validOnPrivacyGroupCreated(expectedGroup));
+
+    bob.verify(privateTransactionVerifier.validOnPrivacyGroupCreated(expectedGroup));
+
+    final EventEmitter eventEmitter =
+        alice.execute(
+            privateContractTransactions.createSmartContractWithPrivacyGroupId(
+                EventEmitter.class,
+                alice.getTransactionSigningKey(),
+                POW_CHAIN_ID,
+                alice.getEnclaveKey(),
+                privxCreatePrivacyGroup.getPrivacyGroupId()));
+
+    privateContractVerifier
+        .validPrivateContractDeployed(
+            eventEmitter.getContractAddress(), alice.getAddress().toString())
+        .verify(eventEmitter);
+
+    final String transactionHash =
+        alice.execute(
+            privacyTransactions.addToPrivacyGroup(
+                privxCreatePrivacyGroup.getPrivacyGroupId(), alice, charlie));
+
+    final PrivacyGroup expectedGroupAfterCharlieIsAdded =
+        new PrivacyGroup(
+            privxCreatePrivacyGroup.getPrivacyGroupId(),
+            PrivacyGroup.Type.PANTHEON,
+            "",
+            "",
+            Base64String.wrapList(alice.getEnclaveKey(), bob.getEnclaveKey()));
+
+    alice.verify(
+        privateTransactionVerifier.validOnPrivacyGroupCreated(expectedGroupAfterCharlieIsAdded));
+
+    bob.verify(
+        privateTransactionVerifier.validOnPrivacyGroupCreated(expectedGroupAfterCharlieIsAdded));
+
+    charlie.verify(
+        privateTransactionVerifier.validOnPrivacyGroupCreated(expectedGroupAfterCharlieIsAdded));
+  }
 }

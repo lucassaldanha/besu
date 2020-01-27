@@ -28,6 +28,7 @@ import org.hyperledger.besu.ethereum.eth.transactions.PendingTransactions;
 import org.hyperledger.besu.ethereum.eth.transactions.TransactionPool;
 import org.hyperledger.besu.ethereum.mainnet.ProtocolSchedule;
 import org.hyperledger.besu.ethereum.privacy.ChainHeadPrivateNonceProvider;
+import org.hyperledger.besu.ethereum.privacy.OnChainPrivacyController;
 import org.hyperledger.besu.ethereum.privacy.PrivacyController;
 import org.hyperledger.besu.ethereum.privacy.PrivateNonceProvider;
 import org.hyperledger.besu.ethereum.privacy.PrivateStateRootResolver;
@@ -109,6 +110,12 @@ public abstract class PrivacyApiGroupJsonRpcMethods extends ApiGroupJsonRpcMetho
             nonceProvider,
             privateTransactionSimulator);
 
+    final OnChainPrivacyController onChainPrivacyController =
+        new OnChainPrivacyController(
+            blockchainQueries.getBlockchain(),
+            getPrivacyParameters().getPrivateStateStorage(),
+            privacyController);
+
     final EnclavePublicKeyProvider enclavePublicProvider =
         privacyParameters.isMultiTenancyEnabled()
             ? user ->
@@ -119,8 +126,12 @@ public abstract class PrivacyApiGroupJsonRpcMethods extends ApiGroupJsonRpcMetho
                                 "Request does not contain an authorization token"))
             : user -> privacyParameters.getEnclavePublicKey();
 
-    return create(privacyController, enclavePublicProvider, privateTransactionSimulator).entrySet()
-        .stream()
+    return create(
+            privacyController,
+            onChainPrivacyController,
+            enclavePublicProvider,
+            privateTransactionSimulator)
+        .entrySet().stream()
         .collect(
             Collectors.toMap(
                 Entry::getKey, entry -> createPrivacyMethod(privacyParameters, entry.getValue())));
@@ -128,6 +139,7 @@ public abstract class PrivacyApiGroupJsonRpcMethods extends ApiGroupJsonRpcMetho
 
   protected abstract Map<String, JsonRpcMethod> create(
       final PrivacyController privacyController,
+      final OnChainPrivacyController onChainPrivacyController,
       final EnclavePublicKeyProvider enclavePublicKeyProvider,
       final PrivateTransactionSimulator privateTransactionSimulator);
 

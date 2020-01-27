@@ -58,6 +58,40 @@ public class PrivacyRequestFactory {
     return besuClient;
   }
 
+  public String privxAddToPrivacyGroup(
+      final Base64String privacyGroupId, final PrivacyNode adder, final List<String> addresses)
+      throws IOException {
+    final BigInteger nonce =
+        besuClient
+            .privGetTransactionCount(adder.getAddress().toHexString(), privacyGroupId)
+            .send()
+            .getTransactionCount();
+
+    final Bytes payload =
+        encodeParameters(
+            Bytes.fromBase64String(adder.getEnclaveKey()),
+            addresses.stream().map(Bytes::fromBase64String).collect(Collectors.toList()));
+
+    final RawPrivateTransaction privateTransaction =
+        RawPrivateTransaction.createTransaction(
+            nonce,
+            BigInteger.valueOf(1000),
+            BigInteger.valueOf(3000000),
+            Address.PRIVACY_PROXY.toHexString(),
+            payload.toHexString(),
+            Base64String.wrap(adder.getEnclaveKey()),
+            privacyGroupId,
+            org.web3j.utils.Restriction.RESTRICTED);
+
+    return besuClient
+        .eeaSendRawTransaction(
+            Numeric.toHexString(
+                PrivateTransactionEncoder.signMessage(
+                    privateTransaction, Credentials.create(adder.getTransactionSigningKey()))))
+        .send()
+        .getTransactionHash();
+  }
+
   public PrivxCreatePrivacyGroup privxCreatePrivacyGroup(
       final PrivacyNode creator, final List<String> addresses) throws IOException {
 
