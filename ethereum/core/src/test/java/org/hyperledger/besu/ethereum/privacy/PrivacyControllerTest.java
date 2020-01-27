@@ -28,6 +28,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -63,6 +64,7 @@ import java.util.Optional;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 import org.apache.tuweni.io.Base64;
+import org.jetbrains.annotations.NotNull;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -306,14 +308,37 @@ public class PrivacyControllerTest {
   }
 
   @Test
-  public void buildsTransactionListForPrivacyGroup() {
+  public void buildsEmptyTransactionListWhenNoGroupIsTracked() {
     when(blockchain.getChainHeadHash()).thenReturn(Hash.ZERO);
-    when(blockchain.getBlockHeader(any(Hash.class)))
+    when(privateStateStorage.getPrivacyGroupHeadBlockMap(any(Hash.class)))
+        .thenReturn(Optional.empty());
+    final List<Hash> privacyGroupMarkerTransactions =
+        privacyController.buildTransactionList(
+            Bytes32.wrap(Bytes.fromBase64String(PRIVACY_GROUP_ID)));
+
+    assertThat(privacyGroupMarkerTransactions.size()).isEqualTo(0);
+  }
+
+  @Test
+  public void buildsEmptyTransactionListWhenRequestedGroupIsNotTracked() {
+    when(blockchain.getChainHeadHash()).thenReturn(Hash.ZERO);
+    when(privateStateStorage.getPrivacyGroupHeadBlockMap(any(Hash.class)))
         .thenReturn(
             Optional.of(
-                new BlockHeader(
-                    Hash.ZERO, null, null, null, null, null, null, null, 0, 0, 0, 0, null, null, 0,
-                    null)));
+                new PrivacyGroupHeadBlockMap(
+                    singletonMap(
+                        Bytes32.wrap(Bytes.fromBase64String(ENCLAVE_PUBLIC_KEY)), Hash.ZERO))));
+    final List<Hash> privacyGroupMarkerTransactions =
+        privacyController.buildTransactionList(
+            Bytes32.wrap(Bytes.fromBase64String(PRIVACY_GROUP_ID)));
+
+    assertThat(privacyGroupMarkerTransactions.size()).isEqualTo(0);
+    verify(privateStateStorage).getPrivacyGroupHeadBlockMap(Hash.ZERO);
+  }
+
+  @Test
+  public void buildsTransactionListWhenRequestedGroupHasTransaction() {
+    when(blockchain.getChainHeadHash()).thenReturn(Hash.ZERO);
     when(privateStateStorage.getPrivacyGroupHeadBlockMap(any(Hash.class)))
         .thenReturn(
             Optional.of(
@@ -321,7 +346,43 @@ public class PrivacyControllerTest {
                     singletonMap(
                         Bytes32.wrap(Bytes.fromBase64String(PRIVACY_GROUP_ID)), Hash.ZERO))));
     when(privateStateStorage.getPrivateBlockMetadata(any(Bytes32.class), any(Bytes32.class)))
-        .thenReturn(Optional.of(new PrivateBlockMetadata(singletonList(new PrivateTransactionMetadata(Hash.ZERO, Hash.ZERO)))));
+        .thenReturn(
+            Optional.of(
+                new PrivateBlockMetadata(
+                    singletonList(new PrivateTransactionMetadata(Hash.ZERO, Hash.ZERO)))));
+    when(blockchain.getBlockHeader(any(Hash.class)))
+        .thenReturn(buildBlockHeaderWithParentHash(null));
+    final List<Hash> privacyGroupMarkerTransactions =
+        privacyController.buildTransactionList(
+            Bytes32.wrap(Bytes.fromBase64String(PRIVACY_GROUP_ID)));
+
+    assertThat(privacyGroupMarkerTransactions.size()).isEqualTo(1);
+    assertThat(privacyGroupMarkerTransactions.get(0)).isEqualTo(Hash.ZERO);
+    verify(privateStateStorage).getPrivacyGroupHeadBlockMap(Hash.ZERO);
+    verify(privateStateStorage)
+        .getPrivateBlockMetadata(
+            any(Bytes32.class), eq(Bytes32.wrap(Bytes.fromBase64String(PRIVACY_GROUP_ID))));
+  }
+
+  @SuppressWarnings("unchecked")
+  @Test
+  public void buildsTransactionListWhenRequestedGroupHasTransactions() {
+    when(blockchain.getChainHeadHash()).thenReturn(Hash.ZERO);
+    final Optional<PrivacyGroupHeadBlockMap> privacyGroupHeadBlockMap =
+        Optional.of(
+            new PrivacyGroupHeadBlockMap(
+                singletonMap(Bytes32.wrap(Bytes.fromBase64String(PRIVACY_GROUP_ID)), Hash.ZERO)));
+    final Optional<PrivateBlockMetadata> privateBlockMetadata =
+        Optional.of(
+            new PrivateBlockMetadata(
+                singletonList(new PrivateTransactionMetadata(Hash.ZERO, Hash.ZERO))));
+    when(privateStateStorage.getPrivacyGroupHeadBlockMap(any(Hash.class)))
+        .thenReturn(privacyGroupHeadBlockMap, privacyGroupHeadBlockMap, Optional.empty());
+    when(privateStateStorage.getPrivateBlockMetadata(any(Bytes32.class), any(Bytes32.class)))
+        .thenReturn(privateBlockMetadata, privateBlockMetadata);
+    when(blockchain.getBlockHeader(any(Hash.class)))
+        .thenReturn(buildBlockHeaderWithParentHash(Hash.ZERO));
+
     final List<Hash> privacyGroupMarkerTransactions =
         privacyController.buildTransactionList(
             Bytes32.wrap(Bytes.fromBase64String(PRIVACY_GROUP_ID)));
@@ -329,9 +390,17 @@ public class PrivacyControllerTest {
     assertThat(privacyGroupMarkerTransactions.size()).isEqualTo(2);
     assertThat(privacyGroupMarkerTransactions.get(0)).isEqualTo(Hash.ZERO);
     assertThat(privacyGroupMarkerTransactions.get(1)).isEqualTo(Hash.ZERO);
-    verify(privateStateStorage)
+    verify(privateStateStorage, times(3)).getPrivacyGroupHeadBlockMap(Hash.ZERO);
+    verify(privateStateStorage, times(2))
         .getPrivateBlockMetadata(
             any(Bytes32.class), eq(Bytes32.wrap(Bytes.fromBase64String(PRIVACY_GROUP_ID))));
+  }
+
+  @NotNull
+  private Optional<BlockHeader> buildBlockHeaderWithParentHash(final Hash parentHash) {
+    return Optional.of(
+        new BlockHeader(
+            parentHash, null, null, null, null, null, null, null, 0, 0, 0, 0, null, null, 0, null));
   }
 
   @Test
