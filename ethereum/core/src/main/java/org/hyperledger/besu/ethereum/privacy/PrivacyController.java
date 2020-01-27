@@ -22,7 +22,6 @@ import org.hyperledger.besu.enclave.types.ReceiveResponse;
 import org.hyperledger.besu.enclave.types.SendResponse;
 import org.hyperledger.besu.ethereum.chain.Blockchain;
 import org.hyperledger.besu.ethereum.core.Address;
-import org.hyperledger.besu.ethereum.core.Hash;
 import org.hyperledger.besu.ethereum.core.PrivacyParameters;
 import org.hyperledger.besu.ethereum.core.Transaction;
 import org.hyperledger.besu.ethereum.core.Wei;
@@ -31,7 +30,6 @@ import org.hyperledger.besu.ethereum.mainnet.ValidationResult;
 import org.hyperledger.besu.ethereum.privacy.markertransaction.PrivateMarkerTransactionFactory;
 import org.hyperledger.besu.ethereum.privacy.storage.PrivacyGroupHeadBlockMap;
 import org.hyperledger.besu.ethereum.privacy.storage.PrivateStateStorage;
-import org.hyperledger.besu.ethereum.privacy.storage.PrivateTransactionMetadata;
 import org.hyperledger.besu.ethereum.rlp.BytesValueRLPOutput;
 import org.hyperledger.besu.ethereum.rlp.RLP;
 import org.hyperledger.besu.ethereum.rlp.RLPInput;
@@ -346,35 +344,5 @@ public class PrivacyController {
 
   public PrivacyGroup retrievePrivacyGroup(final String privacyGroupId) {
     return enclave.retrievePrivacyGroup(privacyGroupId);
-  }
-
-  public List<Hash> buildTransactionList(final Bytes32 privacyGroupId) {
-    final List<Hash> pmtHashes = new ArrayList<>();
-    PrivacyGroupHeadBlockMap privacyGroupHeadBlockMap =
-        privateStateStorage
-            .getPrivacyGroupHeadBlockMap(blockchain.getChainHeadHash())
-            .orElse(PrivacyGroupHeadBlockMap.EMPTY);
-    if (privacyGroupHeadBlockMap.get(privacyGroupId) != null) {
-      Hash blockHash = privacyGroupHeadBlockMap.get(privacyGroupId);
-      while (blockHash != null) {
-        pmtHashes.addAll(
-            0,
-            privateStateStorage.getPrivateBlockMetadata(blockHash, privacyGroupId).get()
-                .getPrivateTransactionMetadataList().stream()
-                .map(PrivateTransactionMetadata::getPrivacyMarkerTransactionHash)
-                .collect(Collectors.toList()));
-        blockHash = blockchain.getBlockHeader(blockHash).get().getParentHash();
-        privacyGroupHeadBlockMap =
-            privateStateStorage
-                .getPrivacyGroupHeadBlockMap(blockHash)
-                .orElse(PrivacyGroupHeadBlockMap.EMPTY);
-        if (privacyGroupHeadBlockMap.get(privacyGroupId) != null) {
-          blockHash = privacyGroupHeadBlockMap.get(privacyGroupId);
-        } else {
-          break;
-        }
-      }
-    }
-    return pmtHashes;
   }
 }
