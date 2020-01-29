@@ -69,9 +69,9 @@ public class OnChainPrivacyAcceptanceTest extends PrivacyAcceptanceTestBase {
             "",
             Base64String.wrapList(alice.getEnclaveKey(), bob.getEnclaveKey()));
 
-    alice.verify(privateTransactionVerifier.validOnPrivacyGroupCreated(expectedGroup));
+    alice.verify(privateTransactionVerifier.validOnChainPrivacyGroupCreated(expectedGroup));
 
-    bob.verify(privateTransactionVerifier.validOnPrivacyGroupCreated(expectedGroup));
+    bob.verify(privateTransactionVerifier.validOnChainPrivacyGroupCreated(expectedGroup));
 
     final String rlpParticipants =
         alice.execute(
@@ -152,9 +152,9 @@ public class OnChainPrivacyAcceptanceTest extends PrivacyAcceptanceTestBase {
             "",
             Base64String.wrapList(alice.getEnclaveKey(), bob.getEnclaveKey()));
 
-    alice.verify(privateTransactionVerifier.validOnPrivacyGroupCreated(expectedGroup));
+    alice.verify(privateTransactionVerifier.validOnChainPrivacyGroupCreated(expectedGroup));
 
-    bob.verify(privateTransactionVerifier.validOnPrivacyGroupCreated(expectedGroup));
+    bob.verify(privateTransactionVerifier.validOnChainPrivacyGroupCreated(expectedGroup));
 
     final EventEmitter eventEmitter =
         alice.execute(
@@ -181,15 +181,15 @@ public class OnChainPrivacyAcceptanceTest extends PrivacyAcceptanceTestBase {
             PrivacyGroup.Type.PANTHEON,
             "",
             "",
-            Base64String.wrapList(alice.getEnclaveKey(), bob.getEnclaveKey()));
+            Base64String.wrapList(alice.getEnclaveKey(), bob.getEnclaveKey(), charlie.getEnclaveKey()));
 
     alice.verify(
-        privateTransactionVerifier.validOnPrivacyGroupCreated(expectedGroupAfterCharlieIsAdded));
+        privateTransactionVerifier.validOnChainPrivacyGroupCreated(expectedGroupAfterCharlieIsAdded));
 
     bob.verify(
-        privateTransactionVerifier.validOnPrivacyGroupCreated(expectedGroupAfterCharlieIsAdded));
+        privateTransactionVerifier.validOnChainPrivacyGroupCreated(expectedGroupAfterCharlieIsAdded));
 
     charlie.verify(
-        privateTransactionVerifier.validOnPrivacyGroupCreated(expectedGroupAfterCharlieIsAdded));
+        privateTransactionVerifier.validOnChainPrivacyGroupCreated(expectedGroupAfterCharlieIsAdded));
   }
 }

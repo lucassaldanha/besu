@@ -33,6 +33,7 @@ import org.hyperledger.besu.ethereum.api.query.BlockchainQueries;
 import org.hyperledger.besu.ethereum.core.PrivacyParameters;
 import org.hyperledger.besu.ethereum.eth.transactions.TransactionPool;
 import org.hyperledger.besu.ethereum.mainnet.ProtocolSchedule;
+import org.hyperledger.besu.ethereum.privacy.OnChainPrivacyController;
 import org.hyperledger.besu.ethereum.privacy.PrivacyController;
 import org.hyperledger.besu.ethereum.privacy.PrivateTransactionSimulator;
 
@@ -170,6 +171,7 @@ public class PrivacyApiGroupJsonRpcMethodsTest {
     @Override
     protected Map<String, JsonRpcMethod> create(
         final PrivacyController privacyController,
+        final OnChainPrivacyController onChainPrivacyController,
         final EnclavePublicKeyProvider enclavePublicKeyProvider,
         final PrivateTransactionSimulator privateTransactionSimulator) {
       this.enclavePublicKeyProvider = enclavePublicKeyProvider;

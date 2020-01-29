@@ -17,6 +17,7 @@ package org.hyperledger.besu.ethereum.mainnet.precompiles.privacy;
 import static org.hyperledger.besu.crypto.Hash.keccak256;
 import static org.hyperledger.besu.ethereum.privacy.PrivateStateRootResolver.EMPTY_ROOT_HASH;
 
+import com.google.common.collect.Lists;
 import org.hyperledger.besu.enclave.Enclave;
 import org.hyperledger.besu.enclave.EnclaveClientException;
 import org.hyperledger.besu.enclave.EnclaveIOException;
@@ -50,7 +51,9 @@ import org.hyperledger.besu.ethereum.vm.GasCalculator;
 import org.hyperledger.besu.ethereum.vm.MessageFrame;
 import org.hyperledger.besu.ethereum.worldstate.WorldStateArchive;
 
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -196,11 +199,13 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
     }
 
     if (addKey != null && privacyGroupHeadBlockMap.get(privacyGroupId) == null) {
-      final ReceiveResponse addRecieveResponse;
+      final ReceiveResponse addReceiveResponse;
       try {
-        addRecieveResponse = enclave.receive(addKey);
-        final Map<Hash, PrivateTransaction> hashPrivateTransactionMap = deserializeAddToGroupPayload(Bytes.wrap(Base64.getDecoder().decode(addRecieveResponse.getPayload())));
-        hashPrivateTransactionMap.values().forEach(pt -> {
+        addReceiveResponse = enclave.receive(addKey);
+        final Map<Hash, PrivateTransaction> hashPrivateTransactionMap = deserializeAddToGroupPayload(Bytes.wrap(Base64.getDecoder().decode(addReceiveResponse.getPayload())));
+        final ArrayList<PrivateTransaction> sortedPrivateTransactions = new ArrayList<>(hashPrivateTransactionMap.values());
+        sortedPrivateTransactions.sort(Comparator.comparingLong(PrivateTransaction::getNonce));
+        sortedPrivateTransactions.forEach(pt -> {
           final PrivateTransactionProcessor.Result result =
                   privateTransactionProcessor.processTransaction(
                           currentBlockchain,
@@ -212,6 +217,14 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
                           new DebugOperationTracer(TraceOptions.DEFAULT),
                           messageFrame.getBlockHashLookup(),
                           privacyGroupId);
+          if (result.isInvalid() || !result.isSuccessful()) {
+            LOG.error(
+                    "Failed to rehydrate private transaction {}: {}",
+                    privateTransaction.getHash(),
+                    result.getValidationResult().getErrorMessage());
+          }
+          privateWorldStateUpdater.commit();
+          disposablePrivateState.persist();
         });
       } catch (final EnclaveClientException e) {
         LOG.debug("Can not fetch private transaction payload with key {}", key, e);
