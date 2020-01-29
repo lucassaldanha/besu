@@ -38,6 +38,7 @@ import org.hyperledger.besu.ethereum.mainnet.AbstractPrecompiledContract;
 import org.hyperledger.besu.ethereum.privacy.PrivateStateRootResolver;
 import org.hyperledger.besu.ethereum.privacy.PrivateTransaction;
 import org.hyperledger.besu.ethereum.privacy.PrivateTransactionProcessor;
+import org.hyperledger.besu.ethereum.privacy.PrivateTransactionWithMetadata;
 import org.hyperledger.besu.ethereum.privacy.PrivateTransactionReceipt;
 import org.hyperledger.besu.ethereum.privacy.storage.PrivacyGroupHeadBlockMap;
 import org.hyperledger.besu.ethereum.privacy.storage.PrivateBlockMetadata;
@@ -50,10 +51,9 @@ import org.hyperledger.besu.ethereum.vm.GasCalculator;
 import org.hyperledger.besu.ethereum.vm.MessageFrame;
 import org.hyperledger.besu.ethereum.worldstate.WorldStateArchive;
 
+import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -200,33 +200,37 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
       final ReceiveResponse addReceiveResponse;
       try {
         addReceiveResponse = enclave.receive(addKey);
-        final Map<Hash, PrivateTransaction> hashPrivateTransactionMap =
+        final List<PrivateTransactionWithMetadata> privateTransactionWithMetadataList =
             deserializeAddToGroupPayload(
                 Bytes.wrap(Base64.getDecoder().decode(addReceiveResponse.getPayload())));
-        hashPrivateTransactionMap
-            .values()
-            .forEach(
-                pt -> {
-                  final PrivateTransactionProcessor.Result result =
-                      privateTransactionProcessor.processTransaction(
-                          currentBlockchain,
-                          publicWorldState,
-                          privateWorldStateUpdater,
-                          currentBlockHeader,
-                          pt,
-                          messageFrame.getMiningBeneficiary(),
-                          new DebugOperationTracer(TraceOptions.DEFAULT),
-                          messageFrame.getBlockHashLookup(),
-                          privacyGroupId);
-                  if (result.isInvalid() || !result.isSuccessful()) {
-                    LOG.error(
-                        "Failed to rehydrate private transaction {}: {}",
-                        privateTransaction.getHash(),
-                        result.getValidationResult().getErrorMessage());
-                  }
-                  privateWorldStateUpdater.commit();
-                  disposablePrivateState.persist();
-                });
+        privateTransactionWithMetadataList.forEach(
+            pt -> {
+              final PrivateTransactionProcessor.Result result =
+                  privateTransactionProcessor.processTransaction(
+                      currentBlockchain,
+                      publicWorldState,
+                      privateWorldStateUpdater,
+                      currentBlockHeader,
+                      pt.getPrivateTransaction(),
+                      messageFrame.getMiningBeneficiary(),
+                      new DebugOperationTracer(TraceOptions.DEFAULT),
+                      messageFrame.getBlockHashLookup(),
+                      privacyGroupId);
+              if (result.isInvalid()
+                  || !result.isSuccessful()
+                  || !disposablePrivateState
+                      .rootHash()
+                      .equals(pt.getPrivateTransactionMetadata().getStateRoot())) {
+                LOG.error(
+                    "Failed to rehydrate private transaction {}: {} - Expecting root hash {}, and got {}",
+                    privateTransaction.getHash(),
+                    result.getValidationResult().getErrorMessage(),
+                    disposablePrivateState.rootHash().toHexString(),
+                    pt.getPrivateTransactionMetadata().getStateRoot());
+              }
+              privateWorldStateUpdater.commit();
+              disposablePrivateState.persist();
+            });
       } catch (final EnclaveClientException e) {
         LOG.debug("Can not fetch private transaction payload with key {}", key, e);
         return Bytes.EMPTY;
@@ -317,19 +321,14 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
         Bytes32.wrap(currentBlockHash), Bytes32.wrap(privacyGroupId), privateBlockMetadata);
   }
 
-  private Map<Hash, PrivateTransaction> deserializeAddToGroupPayload(
+  public List<PrivateTransactionWithMetadata> deserializeAddToGroupPayload(
       final Bytes encodedAddToGroupPayload) {
-    final HashMap<Hash, PrivateTransaction> deserializedResponse = new HashMap<>();
+    final ArrayList<PrivateTransactionWithMetadata> deserializedResponse = new ArrayList<>();
     final BytesValueRLPInput bytesValueRLPInput =
         new BytesValueRLPInput(encodedAddToGroupPayload, false);
     final int noOfEntries = bytesValueRLPInput.enterList();
     for (int i = 0; i < noOfEntries; i++) {
-      bytesValueRLPInput.enterList();
-      final Hash privacyMarkerTransactionHash = Hash.wrap(bytesValueRLPInput.readBytes32());
-      final PrivateTransaction privateTransaction =
-          PrivateTransaction.readFrom(bytesValueRLPInput.readAsRlp());
-      deserializedResponse.put(privacyMarkerTransactionHash, privateTransaction);
-      bytesValueRLPInput.leaveList();
+      deserializedResponse.add(PrivateTransactionWithMetadata.readFrom(bytesValueRLPInput));
     }
     bytesValueRLPInput.leaveList();
     return deserializedResponse;

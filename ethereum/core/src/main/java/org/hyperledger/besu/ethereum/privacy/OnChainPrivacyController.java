@@ -27,12 +27,9 @@ import org.hyperledger.besu.ethereum.rlp.BytesValueRLPInput;
 import org.hyperledger.besu.ethereum.rlp.BytesValueRLPOutput;
 
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
-import com.google.common.collect.Lists;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 
@@ -51,8 +48,9 @@ public class OnChainPrivacyController {
     this.privacyController = privacyController;
   }
 
-  public List<Hash> buildTransactionList(final Bytes32 privacyGroupId) {
-    final List<Hash> pmtHashes = new ArrayList<>();
+  public List<PrivateTransactionMetadata> buildTransactionMetadataList(
+      final Bytes32 privacyGroupId) {
+    final List<PrivateTransactionMetadata> pmtHashes = new ArrayList<>();
     PrivacyGroupHeadBlockMap privacyGroupHeadBlockMap =
         privateStateStorage
             .getPrivacyGroupHeadBlockMap(blockchain.getChainHeadHash())
@@ -62,10 +60,10 @@ public class OnChainPrivacyController {
       while (blockHash != null) {
         pmtHashes.addAll(
             0,
-            privateStateStorage.getPrivateBlockMetadata(blockHash, privacyGroupId).get()
-                .getPrivateTransactionMetadataList().stream()
-                .map(PrivateTransactionMetadata::getPrivacyMarkerTransactionHash)
-                .collect(Collectors.toList()));
+            privateStateStorage
+                .getPrivateBlockMetadata(blockHash, privacyGroupId)
+                .get()
+                .getPrivateTransactionMetadataList());
         blockHash = blockchain.getBlockHeader(blockHash).get().getParentHash();
         privacyGroupHeadBlockMap =
             privateStateStorage
@@ -78,16 +76,17 @@ public class OnChainPrivacyController {
         }
       }
     }
-    return Lists.reverse(pmtHashes);
+    return pmtHashes;
   }
 
-  public List<PrivateTransaction> retrievePrivateTransactions(
-      final List<Hash> privateMarkerTransactionHashes, final String enclavePublicKey) {
-    final ArrayList<PrivateTransaction> privateTransactions = new ArrayList<>();
-    privateMarkerTransactionHashes.forEach(
+  public List<PrivateTransactionWithMetadata> retrievePrivateTransactions(
+      final List<PrivateTransactionMetadata> privateTransactionMetadataList,
+      final String enclavePublicKey) {
+    final ArrayList<PrivateTransactionWithMetadata> privateTransactions = new ArrayList<>();
+    privateTransactionMetadataList.forEach(
         h -> {
           final Transaction privateMarkerTransaction =
-              blockchain.getTransactionByHash(h).orElseThrow();
+              blockchain.getTransactionByHash(h.getPrivacyMarkerTransactionHash()).orElseThrow();
           final ReceiveResponse receiveResponse =
               privacyController.retrieveTransaction(
                   privateMarkerTransaction.getPayload().toBase64String(), enclavePublicKey);
@@ -95,46 +94,34 @@ public class OnChainPrivacyController {
               new BytesValueRLPInput(
                   Bytes.fromBase64String(new String(receiveResponse.getPayload(), UTF_8)), false);
 
-          privateTransactions.add(PrivateTransaction.readFrom(input));
+          privateTransactions.add(
+              new PrivateTransactionWithMetadata(PrivateTransaction.readFrom(input), h));
         });
     return privateTransactions;
   }
 
   public Bytes serializeAddToGroupPayload(
-      final List<Hash> privacyMarkerTransactionHashes,
-      final List<PrivateTransaction> privateTransactions) {
-    if (privacyMarkerTransactionHashes.size() != privateTransactions.size()) {
-      throw new RuntimeException();
-    }
+      final List<PrivateTransactionWithMetadata> privateTransactionWithMetadataList) {
 
     final BytesValueRLPOutput rlpOutput = new BytesValueRLPOutput();
     rlpOutput.startList();
-    for (int i = 0; i < privacyMarkerTransactionHashes.size(); ++i) {
-      final Hash hash = privacyMarkerTransactionHashes.get(i);
-      final PrivateTransaction privateTransaction = privateTransactions.get(i);
-      rlpOutput.startList();
-      rlpOutput.writeBytes(hash);
-      privateTransaction.writeTo(rlpOutput);
-      rlpOutput.endList();
-    }
+    privateTransactionWithMetadataList.sort(
+        Comparator.comparingLong(p -> p.getPrivateTransaction().getNonce()));
+    privateTransactionWithMetadataList.forEach(
+        privateTransactionWithMetadata -> privateTransactionWithMetadata.writeTo(rlpOutput));
     rlpOutput.endList();
 
     return rlpOutput.encoded();
   }
 
-  public Map<Hash, PrivateTransaction> deserializeAddToGroupPayload(
+  public List<PrivateTransactionWithMetadata> deserializeAddToGroupPayload(
       final Bytes encodedAddToGroupPayload) {
-    final HashMap<Hash, PrivateTransaction> deserializedResponse = new HashMap<>();
+    final ArrayList<PrivateTransactionWithMetadata> deserializedResponse = new ArrayList<>();
     final BytesValueRLPInput bytesValueRLPInput =
         new BytesValueRLPInput(encodedAddToGroupPayload, false);
     final int noOfEntries = bytesValueRLPInput.enterList();
     for (int i = 0; i < noOfEntries; i++) {
-      bytesValueRLPInput.enterList();
-      final Hash privacyMarkerTransactionHash = Hash.wrap(bytesValueRLPInput.readBytes32());
-      final PrivateTransaction privateTransaction =
-          PrivateTransaction.readFrom(bytesValueRLPInput.readAsRlp());
-      deserializedResponse.put(privacyMarkerTransactionHash, privateTransaction);
-      bytesValueRLPInput.leaveList();
+      deserializedResponse.add(PrivateTransactionWithMetadata.readFrom(bytesValueRLPInput));
     }
     bytesValueRLPInput.leaveList();
     return deserializedResponse;

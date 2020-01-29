@@ -28,13 +28,14 @@ import org.hyperledger.besu.ethereum.api.jsonrpc.internal.response.JsonRpcErrorR
 import org.hyperledger.besu.ethereum.api.jsonrpc.internal.response.JsonRpcResponse;
 import org.hyperledger.besu.ethereum.api.jsonrpc.internal.response.JsonRpcSuccessResponse;
 import org.hyperledger.besu.ethereum.core.Address;
-import org.hyperledger.besu.ethereum.core.Hash;
 import org.hyperledger.besu.ethereum.core.Transaction;
 import org.hyperledger.besu.ethereum.eth.transactions.TransactionPool;
 import org.hyperledger.besu.ethereum.privacy.OnChainPrivacyController;
 import org.hyperledger.besu.ethereum.privacy.PrivacyController;
 import org.hyperledger.besu.ethereum.privacy.PrivateTransaction;
+import org.hyperledger.besu.ethereum.privacy.PrivateTransactionWithMetadata;
 import org.hyperledger.besu.ethereum.privacy.SendTransactionResponse;
+import org.hyperledger.besu.ethereum.privacy.storage.PrivateTransactionMetadata;
 
 import java.util.List;
 
@@ -78,15 +79,16 @@ public class EeaSendRawTransaction implements JsonRpcMethod {
 
     final String addPayloadEnclaveKey;
     if (privacyController.isGroupAdditionTransaction(privateTransaction)) {
-      final List<Hash> hashes =
-          onChainPrivacyController.buildTransactionList(
+      final List<PrivateTransactionMetadata> privateTransactionMetadataList =
+          onChainPrivacyController.buildTransactionMetadataList(
               Bytes32.wrap(privateTransaction.getPrivacyGroupId().get()));
-      if (hashes.size() > 0) {
-        final List<PrivateTransaction> privateTransactions =
+      if (privateTransactionMetadataList.size() > 0) {
+        final List<PrivateTransactionWithMetadata> privateTransactionWithMetadataList =
             onChainPrivacyController.retrievePrivateTransactions(
-                hashes, enclavePublicKeyProvider.getEnclaveKey(requestContext.getUser()));
+                privateTransactionMetadataList,
+                enclavePublicKeyProvider.getEnclaveKey(requestContext.getUser()));
         final Bytes bytes =
-            onChainPrivacyController.serializeAddToGroupPayload(hashes, privateTransactions);
+            onChainPrivacyController.serializeAddToGroupPayload(privateTransactionWithMetadataList);
         addPayloadEnclaveKey =
             privacyController.sendAddPayload(
                 bytes.toBase64String(),
