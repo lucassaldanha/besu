@@ -17,7 +17,6 @@ package org.hyperledger.besu.ethereum.mainnet.precompiles.privacy;
 import static org.hyperledger.besu.crypto.Hash.keccak256;
 import static org.hyperledger.besu.ethereum.privacy.PrivateStateRootResolver.EMPTY_ROOT_HASH;
 
-import com.google.common.collect.Lists;
 import org.hyperledger.besu.enclave.Enclave;
 import org.hyperledger.besu.enclave.EnclaveClientException;
 import org.hyperledger.besu.enclave.EnclaveIOException;
@@ -51,7 +50,6 @@ import org.hyperledger.besu.ethereum.vm.GasCalculator;
 import org.hyperledger.besu.ethereum.vm.MessageFrame;
 import org.hyperledger.besu.ethereum.worldstate.WorldStateArchive;
 
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -202,12 +200,15 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
       final ReceiveResponse addReceiveResponse;
       try {
         addReceiveResponse = enclave.receive(addKey);
-        final Map<Hash, PrivateTransaction> hashPrivateTransactionMap = deserializeAddToGroupPayload(Bytes.wrap(Base64.getDecoder().decode(addReceiveResponse.getPayload())));
-        final ArrayList<PrivateTransaction> sortedPrivateTransactions = new ArrayList<>(hashPrivateTransactionMap.values());
-        sortedPrivateTransactions.sort(Comparator.comparingLong(PrivateTransaction::getNonce));
-        sortedPrivateTransactions.forEach(pt -> {
-          final PrivateTransactionProcessor.Result result =
-                  privateTransactionProcessor.processTransaction(
+        final Map<Hash, PrivateTransaction> hashPrivateTransactionMap =
+            deserializeAddToGroupPayload(
+                Bytes.wrap(Base64.getDecoder().decode(addReceiveResponse.getPayload())));
+        hashPrivateTransactionMap
+            .values()
+            .forEach(
+                pt -> {
+                  final PrivateTransactionProcessor.Result result =
+                      privateTransactionProcessor.processTransaction(
                           currentBlockchain,
                           publicWorldState,
                           privateWorldStateUpdater,
@@ -217,15 +218,15 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
                           new DebugOperationTracer(TraceOptions.DEFAULT),
                           messageFrame.getBlockHashLookup(),
                           privacyGroupId);
-          if (result.isInvalid() || !result.isSuccessful()) {
-            LOG.error(
-                    "Failed to rehydrate private transaction {}: {}",
-                    privateTransaction.getHash(),
-                    result.getValidationResult().getErrorMessage());
-          }
-          privateWorldStateUpdater.commit();
-          disposablePrivateState.persist();
-        });
+                  if (result.isInvalid() || !result.isSuccessful()) {
+                    LOG.error(
+                        "Failed to rehydrate private transaction {}: {}",
+                        privateTransaction.getHash(),
+                        result.getValidationResult().getErrorMessage());
+                  }
+                  privateWorldStateUpdater.commit();
+                  disposablePrivateState.persist();
+                });
       } catch (final EnclaveClientException e) {
         LOG.debug("Can not fetch private transaction payload with key {}", key, e);
         return Bytes.EMPTY;
@@ -317,21 +318,20 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
   }
 
   private Map<Hash, PrivateTransaction> deserializeAddToGroupPayload(
-          final Bytes encodedAddToGroupPayload) {
+      final Bytes encodedAddToGroupPayload) {
     final HashMap<Hash, PrivateTransaction> deserializedResponse = new HashMap<>();
     final BytesValueRLPInput bytesValueRLPInput =
-            new BytesValueRLPInput(encodedAddToGroupPayload, false);
+        new BytesValueRLPInput(encodedAddToGroupPayload, false);
     final int noOfEntries = bytesValueRLPInput.enterList();
     for (int i = 0; i < noOfEntries; i++) {
       bytesValueRLPInput.enterList();
       final Hash privacyMarkerTransactionHash = Hash.wrap(bytesValueRLPInput.readBytes32());
       final PrivateTransaction privateTransaction =
-              PrivateTransaction.readFrom(bytesValueRLPInput.readAsRlp());
+          PrivateTransaction.readFrom(bytesValueRLPInput.readAsRlp());
       deserializedResponse.put(privacyMarkerTransactionHash, privateTransaction);
       bytesValueRLPInput.leaveList();
     }
     bytesValueRLPInput.leaveList();
     return deserializedResponse;
   }
-
 }

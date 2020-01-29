@@ -181,15 +181,19 @@ public class OnChainPrivacyAcceptanceTest extends PrivacyAcceptanceTestBase {
             PrivacyGroup.Type.PANTHEON,
             "",
             "",
-            Base64String.wrapList(alice.getEnclaveKey(), bob.getEnclaveKey(), charlie.getEnclaveKey()));
+            Base64String.wrapList(
+                alice.getEnclaveKey(), bob.getEnclaveKey(), charlie.getEnclaveKey()));
 
     alice.verify(
-        privateTransactionVerifier.validOnChainPrivacyGroupCreated(expectedGroupAfterCharlieIsAdded));
+        privateTransactionVerifier.validOnChainPrivacyGroupCreated(
+            expectedGroupAfterCharlieIsAdded));
 
     bob.verify(
-        privateTransactionVerifier.validOnChainPrivacyGroupCreated(expectedGroupAfterCharlieIsAdded));
+        privateTransactionVerifier.validOnChainPrivacyGroupCreated(
+            expectedGroupAfterCharlieIsAdded));
 
     charlie.verify(
-        privateTransactionVerifier.validOnChainPrivacyGroupCreated(expectedGroupAfterCharlieIsAdded));
+        privateTransactionVerifier.validOnChainPrivacyGroupCreated(
+            expectedGroupAfterCharlieIsAdded));
   }
 }

@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.Lists;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 
@@ -77,7 +78,7 @@ public class OnChainPrivacyController {
         }
       }
     }
-    return pmtHashes;
+    return Lists.reverse(pmtHashes);
   }
 
   public List<PrivateTransaction> retrievePrivateTransactions(

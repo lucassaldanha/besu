@@ -83,15 +83,15 @@ public class EeaSendRawTransaction implements JsonRpcMethod {
               Bytes32.wrap(privateTransaction.getPrivacyGroupId().get()));
       if (hashes.size() > 0) {
         final List<PrivateTransaction> privateTransactions =
-                onChainPrivacyController.retrievePrivateTransactions(
-                        hashes, enclavePublicKeyProvider.getEnclaveKey(requestContext.getUser()));
+            onChainPrivacyController.retrievePrivateTransactions(
+                hashes, enclavePublicKeyProvider.getEnclaveKey(requestContext.getUser()));
         final Bytes bytes =
-                onChainPrivacyController.serializeAddToGroupPayload(hashes, privateTransactions);
+            onChainPrivacyController.serializeAddToGroupPayload(hashes, privateTransactions);
         addPayloadEnclaveKey =
-                privacyController.sendAddPayload(
-                        bytes.toBase64String(),
-                        enclavePublicKeyProvider.getEnclaveKey(requestContext.getUser()),
-                        privateTransaction);
+            privacyController.sendAddPayload(
+                bytes.toBase64String(),
+                enclavePublicKeyProvider.getEnclaveKey(requestContext.getUser()),
+                privateTransaction);
       } else {
         addPayloadEnclaveKey = null;
       }
@@ -130,7 +130,9 @@ public class EeaSendRawTransaction implements JsonRpcMethod {
                     .getMembers()
                     .contains(enclavePublicKeyProvider.getEnclaveKey(requestContext.getUser()))) {
               privacyMarkerTransaction =
-                  privacyController.createPrivacyMarkerTransaction(buildCompoundKey(sendTransactionResponse.getEnclaveKey(), addPayloadEnclaveKey),
+                  privacyController.createPrivacyMarkerTransaction(
+                      buildCompoundKey(
+                          sendTransactionResponse.getEnclaveKey(), addPayloadEnclaveKey),
                       privateTransaction,
                       Address.ONCHAIN_PRIVACY);
             } else {
@@ -158,6 +160,10 @@ public class EeaSendRawTransaction implements JsonRpcMethod {
   }
 
   private String buildCompoundKey(final String enclaveKey, final String addPayloadEnclaveKey) {
-    return addPayloadEnclaveKey != null ? Bytes.concatenate(Bytes.fromBase64String(enclaveKey), Bytes.fromBase64String(addPayloadEnclaveKey)).toBase64String() : enclaveKey;
+    return addPayloadEnclaveKey != null
+        ? Bytes.concatenate(
+                Bytes.fromBase64String(enclaveKey), Bytes.fromBase64String(addPayloadEnclaveKey))
+            .toBase64String()
+        : enclaveKey;
   }
 }

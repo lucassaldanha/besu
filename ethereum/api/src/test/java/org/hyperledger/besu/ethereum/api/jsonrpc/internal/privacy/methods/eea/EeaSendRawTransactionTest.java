@@ -133,7 +133,8 @@ public class EeaSendRawTransactionTest {
   @Before
   public void before() {
     method =
-        new EeaSendRawTransaction(transactionPool, privacyController, onChainPrivacyController, enclavePublicKeyProvider);
+        new EeaSendRawTransaction(
+            transactionPool, privacyController, onChainPrivacyController, enclavePublicKeyProvider);
   }
 
   @Test
