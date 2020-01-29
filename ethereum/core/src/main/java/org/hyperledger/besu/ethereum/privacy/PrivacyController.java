@@ -53,6 +53,8 @@ import org.apache.tuweni.units.bigints.UInt256;
 public class PrivacyController {
 
   private static final Logger LOG = LogManager.getLogger();
+  private static final String ADD_TO_GROUP_METHOD_SIGNATURE = "0xf744b089";
+  private static final String GET_PARTICIPANTS_METHOD_SIGNATURE = "0x0b0235be";
 
   private final Blockchain blockchain;
   private final Enclave enclave;
@@ -250,7 +252,7 @@ public class PrivacyController {
   private List<String> resolvePrivateFor(
       final PrivateTransaction privateTransaction, final String enclavePublicKey) {
     final ArrayList<String> privateFor = new ArrayList<>();
-    boolean isLegacyTransaction = privateTransaction.getPrivateFor().isPresent();
+    final boolean isLegacyTransaction = privateTransaction.getPrivateFor().isPresent();
     if (isLegacyTransaction) {
       privateFor.addAll(
           privateTransaction.getPrivateFor().get().stream()
@@ -270,7 +272,7 @@ public class PrivacyController {
   private boolean isGroupAdditionTransaction(final PrivateTransaction privateTransaction) {
     return privateTransaction.getTo().isPresent()
         && privateTransaction.getTo().get().equals(Address.PRIVACY_PROXY)
-        && privateTransaction.getPayload().toHexString().startsWith("0xf744b089");
+        && privateTransaction.getPayload().toHexString().startsWith(ADD_TO_GROUP_METHOD_SIGNATURE);
   }
 
   private List<String> getParticipantsFromParameter(final Bytes input) {
@@ -326,7 +328,8 @@ public class PrivacyController {
         3000000,
         Wei.of(1000),
         Wei.ZERO,
-        Bytes.concatenate(Bytes.fromHexString("0x0b0235be"), enclavePublicKey));
+        Bytes.concatenate(
+            Bytes.fromHexString(GET_PARTICIPANTS_METHOD_SIGNATURE), enclavePublicKey));
   }
 
   private String getPrivacyGroupId(final String key, final String privateFrom) {

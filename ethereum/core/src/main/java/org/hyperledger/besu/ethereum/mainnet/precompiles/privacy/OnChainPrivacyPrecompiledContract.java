@@ -28,7 +28,6 @@ import org.hyperledger.besu.ethereum.core.BlockHeader;
 import org.hyperledger.besu.ethereum.core.DefaultEvmAccount;
 import org.hyperledger.besu.ethereum.core.Gas;
 import org.hyperledger.besu.ethereum.core.Hash;
-import org.hyperledger.besu.ethereum.core.Log;
 import org.hyperledger.besu.ethereum.core.MutableAccount;
 import org.hyperledger.besu.ethereum.core.MutableWorldState;
 import org.hyperledger.besu.ethereum.core.PrivacyParameters;
@@ -39,6 +38,7 @@ import org.hyperledger.besu.ethereum.mainnet.AbstractPrecompiledContract;
 import org.hyperledger.besu.ethereum.privacy.PrivateStateRootResolver;
 import org.hyperledger.besu.ethereum.privacy.PrivateTransaction;
 import org.hyperledger.besu.ethereum.privacy.PrivateTransactionProcessor;
+import org.hyperledger.besu.ethereum.privacy.PrivateTransactionReceipt;
 import org.hyperledger.besu.ethereum.privacy.storage.PrivacyGroupHeadBlockMap;
 import org.hyperledger.besu.ethereum.privacy.storage.PrivateBlockMetadata;
 import org.hyperledger.besu.ethereum.privacy.storage.PrivateStateStorage;
@@ -51,7 +51,6 @@ import org.hyperledger.besu.ethereum.vm.MessageFrame;
 import org.hyperledger.besu.ethereum.worldstate.WorldStateArchive;
 
 import java.util.Base64;
-import java.util.List;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -168,7 +167,7 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
     if (lastRootHash.equals(EMPTY_ROOT_HASH)) {
       // inject management
       final DefaultEvmAccount managementPrecompile =
-          privateWorldStateUpdater.createAccount(Address.PRIVACY_MANAGEMENT);
+          privateWorldStateUpdater.createAccount(Address.DEFAULT_PRIVACY_MANAGEMENT);
       final MutableAccount mutableManagementPrecompiled = managementPrecompile.getMutable();
       // this is the code for the simple management contract
       mutableManagementPrecompiled.setCode(SIMPLE_GROUP_MANAGEMENT_CODE);
@@ -181,7 +180,7 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
       mutableProxyPrecompiled.setCode(PROXY_PRECOMPILED_CODE);
       // manually set the management contract address so the proxy can trust it
       mutableProxyPrecompiled.setStorageValue(
-          UInt256.ZERO, UInt256.fromBytes(Bytes32.leftPad(Address.PRIVACY_MANAGEMENT)));
+          UInt256.ZERO, UInt256.fromBytes(Bytes32.leftPad(Address.DEFAULT_PRIVACY_MANAGEMENT)));
     }
 
     final PrivateTransactionProcessor.Result result =
@@ -222,19 +221,16 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
           privateStateUpdater);
 
       final Bytes32 txHash = keccak256(RLP.encode(privateTransaction::writeTo));
-      final List<Log> logs = result.getLogs();
-      if (!logs.isEmpty()) {
-        privateStateUpdater.putTransactionLogs(txHash, result.getLogs());
-      }
-      if (result.getRevertReason().isPresent()) {
-        privateStateUpdater.putTransactionRevertReason(txHash, result.getRevertReason().get());
-      }
 
-      privateStateUpdater.putTransactionStatus(
-          txHash,
-          Bytes.of(
-              result.getStatus() == PrivateTransactionProcessor.Result.Status.SUCCESSFUL ? 1 : 0));
-      privateStateUpdater.putTransactionResult(txHash, result.getOutput());
+      final int txStatus =
+          result.getStatus() == PrivateTransactionProcessor.Result.Status.SUCCESSFUL ? 1 : 0;
+
+      final PrivateTransactionReceipt privateTransactionReceipt =
+          new PrivateTransactionReceipt(
+              txStatus, result.getLogs(), result.getOutput(), result.getRevertReason());
+
+      privateStateUpdater.putTransactionReceipt(
+          currentBlockHash, txHash, privateTransactionReceipt);
 
       // TODO: this map could be passed through from @PrivacyBlockProcessor and saved once at the
       // end of block processing
