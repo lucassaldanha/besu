@@ -19,6 +19,8 @@ import org.hyperledger.besu.ethereum.rlp.RLPException;
 import org.hyperledger.besu.ethereum.rlp.RLPInput;
 import org.hyperledger.besu.ethereum.rlp.RLPOutput;
 
+import java.util.Objects;
+
 public class PrivateTransactionWithMetadata {
   private final PrivateTransaction privateTransaction;
   private final PrivateTransactionMetadata privateTransactionMetadata;
@@ -52,5 +54,19 @@ public class PrivateTransactionWithMetadata {
 
   public PrivateTransactionMetadata getPrivateTransactionMetadata() {
     return privateTransactionMetadata;
+  }
+
+  @Override
+  public boolean equals(final Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+    final PrivateTransactionWithMetadata that = (PrivateTransactionWithMetadata) o;
+    return privateTransaction.equals(that.privateTransaction)
+        && privateTransactionMetadata.equals(that.privateTransactionMetadata);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(privateTransaction, privateTransactionMetadata);
   }
 }
