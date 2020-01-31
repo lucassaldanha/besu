@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.web3j.protocol.exceptions.TransactionException;
 import org.web3j.utils.Base64String;
 
 public class AddToOnChainPrivacyGroupTransaction implements Transaction<String> {
@@ -44,7 +45,7 @@ public class AddToOnChainPrivacyGroupTransaction implements Transaction<String> 
   public String execute(final NodeRequests node) {
     try {
       return node.privacy().privxAddToPrivacyGroup(privacyGroupId, adder, addresses);
-    } catch (IOException e) {
+    } catch (IOException | TransactionException e) {
       throw new RuntimeException(e);
     }
   }

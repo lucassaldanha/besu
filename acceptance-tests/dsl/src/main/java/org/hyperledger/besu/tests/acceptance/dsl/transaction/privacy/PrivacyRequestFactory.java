@@ -38,12 +38,16 @@ import org.web3j.protocol.core.Request;
 import org.web3j.protocol.core.Response;
 import org.web3j.protocol.eea.crypto.PrivateTransactionEncoder;
 import org.web3j.protocol.eea.crypto.RawPrivateTransaction;
+import org.web3j.protocol.exceptions.TransactionException;
+import org.web3j.tx.response.PollingPrivateTransactionReceiptProcessor;
 import org.web3j.utils.Base64String;
 import org.web3j.utils.Numeric;
 
 public class PrivacyRequestFactory {
   private static final Bytes DEFAULT_PRIVACY_ADD_METHOD_SIGNATURE =
       Bytes.fromHexString("0xf744b089");
+  private static final Bytes DEFAULT_PRIVACY_LOCK_METHOD_SIGNATURE =
+      Bytes.fromHexString("0xf83d08ba");
   private final Besu besuClient;
   private final Web3jService web3jService;
   private final SecureRandom secureRandom;
@@ -60,7 +64,10 @@ public class PrivacyRequestFactory {
 
   public String privxAddToPrivacyGroup(
       final Base64String privacyGroupId, final PrivacyNode adder, final List<String> addresses)
-      throws IOException {
+      throws IOException, TransactionException {
+
+    lockTheContract(adder, privacyGroupId);
+
     final BigInteger nonce =
         besuClient
             .privGetTransactionCount(adder.getAddress().toHexString(), privacyGroupId)
@@ -90,6 +97,38 @@ public class PrivacyRequestFactory {
                     privateTransaction, Credentials.create(adder.getTransactionSigningKey()))))
         .send()
         .getTransactionHash();
+  }
+
+  private void lockTheContract(final PrivacyNode locker, final Base64String privacyGroupId)
+      throws IOException, TransactionException {
+    final BigInteger nonce =
+        besuClient
+            .privGetTransactionCount(locker.getAddress().toHexString(), privacyGroupId)
+            .send()
+            .getTransactionCount();
+
+    final RawPrivateTransaction privateTransaction =
+        RawPrivateTransaction.createTransaction(
+            nonce,
+            BigInteger.valueOf(1000),
+            BigInteger.valueOf(3000000),
+            Address.PRIVACY_PROXY.toHexString(),
+            DEFAULT_PRIVACY_LOCK_METHOD_SIGNATURE.toHexString(),
+            Base64String.wrap(locker.getEnclaveKey()),
+            privacyGroupId,
+            org.web3j.utils.Restriction.RESTRICTED);
+
+    final String transactionHash =
+        besuClient
+            .eeaSendRawTransaction(
+                Numeric.toHexString(
+                    PrivateTransactionEncoder.signMessage(
+                        privateTransaction, Credentials.create(locker.getTransactionSigningKey()))))
+            .send()
+            .getTransactionHash();
+
+    new PollingPrivateTransactionReceiptProcessor(besuClient, 3000, 10)
+        .waitForTransactionReceipt(transactionHash);
   }
 
   public PrivxCreatePrivacyGroup privxCreatePrivacyGroup(
