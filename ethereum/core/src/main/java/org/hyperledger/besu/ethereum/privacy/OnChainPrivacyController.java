@@ -105,8 +105,6 @@ public class OnChainPrivacyController {
 
     final BytesValueRLPOutput rlpOutput = new BytesValueRLPOutput();
     rlpOutput.startList();
-    privateTransactionWithMetadataList.sort(
-        Comparator.comparingLong(p -> p.getPrivateTransaction().getNonce()));
     privateTransactionWithMetadataList.forEach(
         privateTransactionWithMetadata -> privateTransactionWithMetadata.writeTo(rlpOutput));
     rlpOutput.endList();

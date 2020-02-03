@@ -23,14 +23,18 @@ import org.hyperledger.besu.tests.acceptance.dsl.privacy.PrivacyNode;
 import org.hyperledger.besu.tests.acceptance.dsl.transaction.privacy.PrivacyRequestFactory.PrivxCreatePrivacyGroup;
 import org.hyperledger.besu.tests.web3j.generated.EventEmitter;
 
+import java.math.BigInteger;
 import java.security.SecureRandom;
 import java.util.Collections;
+import java.util.Optional;
 
 import org.apache.tuweni.bytes.Bytes;
 import org.junit.Before;
 import org.junit.Test;
 import org.web3j.protocol.besu.response.privacy.PrivacyGroup;
 import org.web3j.protocol.besu.response.privacy.PrivateTransactionReceipt;
+import org.web3j.protocol.core.methods.response.Log;
+import org.web3j.protocol.core.methods.response.TransactionReceipt;
 import org.web3j.utils.Base64String;
 
 public class OnChainPrivacyAcceptanceTest extends PrivacyAcceptanceTestBase {
@@ -69,9 +73,9 @@ public class OnChainPrivacyAcceptanceTest extends PrivacyAcceptanceTestBase {
             "",
             Base64String.wrapList(alice.getEnclaveKey(), bob.getEnclaveKey()));
 
-    alice.verify(privateTransactionVerifier.validOnChainPrivacyGroupCreated(expectedGroup));
+    alice.verify(privateTransactionVerifier.validOnChainPrivacyGroupExists(expectedGroup));
 
-    bob.verify(privateTransactionVerifier.validOnChainPrivacyGroupCreated(expectedGroup));
+    bob.verify(privateTransactionVerifier.validOnChainPrivacyGroupExists(expectedGroup));
 
     final String rlpParticipants =
         alice.execute(
@@ -152,9 +156,9 @@ public class OnChainPrivacyAcceptanceTest extends PrivacyAcceptanceTestBase {
             "",
             Base64String.wrapList(alice.getEnclaveKey(), bob.getEnclaveKey()));
 
-    alice.verify(privateTransactionVerifier.validOnChainPrivacyGroupCreated(expectedGroup));
+    alice.verify(privateTransactionVerifier.validOnChainPrivacyGroupExists(expectedGroup));
 
-    bob.verify(privateTransactionVerifier.validOnChainPrivacyGroupCreated(expectedGroup));
+    bob.verify(privateTransactionVerifier.validOnChainPrivacyGroupExists(expectedGroup));
 
     final EventEmitter eventEmitter =
         alice.execute(
@@ -185,15 +189,137 @@ public class OnChainPrivacyAcceptanceTest extends PrivacyAcceptanceTestBase {
                 alice.getEnclaveKey(), bob.getEnclaveKey(), charlie.getEnclaveKey()));
 
     alice.verify(
-        privateTransactionVerifier.validOnChainPrivacyGroupCreated(
+        privateTransactionVerifier.validOnChainPrivacyGroupExists(
             expectedGroupAfterCharlieIsAdded));
 
     bob.verify(
-        privateTransactionVerifier.validOnChainPrivacyGroupCreated(
+        privateTransactionVerifier.validOnChainPrivacyGroupExists(
             expectedGroupAfterCharlieIsAdded));
 
     charlie.verify(
-        privateTransactionVerifier.validOnChainPrivacyGroupCreated(
+        privateTransactionVerifier.validOnChainPrivacyGroupExists(
             expectedGroupAfterCharlieIsAdded));
+
   }
+
+  @Test
+  public void canAddParticipantToGroup1() {
+    final PrivxCreatePrivacyGroup privxCreatePrivacyGroup =
+            alice.execute(privacyTransactions.createOnChainPrivacyGroup(alice, alice, bob));
+
+    assertThat(privxCreatePrivacyGroup).isNotNull();
+
+    final String privacyGroupId = privxCreatePrivacyGroup.getPrivacyGroupId();
+    final PrivacyGroup expectedGroup =
+            new PrivacyGroup(
+                    privacyGroupId,
+                    PrivacyGroup.Type.PANTHEON,
+                    "",
+                    "",
+                    Base64String.wrapList(alice.getEnclaveKey(), bob.getEnclaveKey()));
+
+    alice.verify(privateTransactionVerifier.validOnChainPrivacyGroupExists(expectedGroup));
+    bob.verify(privateTransactionVerifier.validOnChainPrivacyGroupExists(expectedGroup));
+    final EventEmitter eventEmitter =
+            alice.execute(
+                    privateContractTransactions.createSmartContractWithPrivacyGroupId(
+                            EventEmitter.class,
+                            alice.getTransactionSigningKey(),
+                            POW_CHAIN_ID,
+                            alice.getEnclaveKey(),
+                            privacyGroupId));
+    privateContractVerifier
+            .validPrivateContractDeployed(
+                    eventEmitter.getContractAddress(), alice.getAddress().toString())
+            .verify(eventEmitter);
+
+    final String transactionHash =
+            bob.execute(
+                    privacyTransactions.addToPrivacyGroup(
+                            privacyGroupId, bob, charlie));
+
+    final String callHash = alice.execute(
+            privateContractTransactions.callOnChainPermissioningSmartContract(
+                    eventEmitter.getContractAddress(),
+                    eventEmitter.value().encodeFunctionCall(),
+                    alice.getTransactionSigningKey(),
+                    POW_CHAIN_ID,
+                    alice.getEnclaveKey(),
+                    privacyGroupId));
+
+    final PrivacyGroup expectedGroupAfterCharlieIsAdded =
+            new PrivacyGroup(
+                    privacyGroupId,
+                    PrivacyGroup.Type.PANTHEON,
+                    "",
+                    "",
+                    Base64String.wrapList(
+                            alice.getEnclaveKey(), bob.getEnclaveKey(), charlie.getEnclaveKey()));
+
+    alice.verify(
+            privateTransactionVerifier.validOnChainPrivacyGroupExists(
+                    expectedGroupAfterCharlieIsAdded));
+
+    bob.verify(
+            privateTransactionVerifier.validOnChainPrivacyGroupExists(
+                    expectedGroupAfterCharlieIsAdded));
+
+    charlie.verify(
+            privateTransactionVerifier.validOnChainPrivacyGroupExists(
+                    expectedGroupAfterCharlieIsAdded));
+
+    final Optional<TransactionReceipt> aliceAddReceipt = alice.execute(ethTransactions.getTransactionReceipt(transactionHash));
+    assertThat(aliceAddReceipt.get().getStatus()).isEqualTo("0x1"); // this means the PMT for the "add" succeeded which is what we expect
+
+    final Optional<TransactionReceipt> alicePublicReceipt = alice.execute(ethTransactions.getTransactionReceipt(callHash));
+    if (alicePublicReceipt.isPresent()) {
+      assertThat(alicePublicReceipt.get().getBlockHash()).isEqualTo(aliceAddReceipt.get().getBlockHash()); // ensure that "add" and "call" are in the same block
+      assertThat(alicePublicReceipt.get().getStatus()).isEqualTo("0x1"); // this means the PMT for the "call" succeeded which is what we expect because it is in the same block as the "add" and there is no way to tell that this will happen before the block is mined
+    }
+
+
+    final PrivateTransactionReceipt aliceReceipt =
+            alice.execute(privacyTransactions.getPrivateTransactionReceipt(callHash));
+    assertThat(aliceReceipt.getStatus()).isEqualTo("0x0"); // this means the "call" failed which is what we expect because the group was locked!
+    final PrivateTransactionReceipt bobReceipt =
+            alice.execute(privacyTransactions.getPrivateTransactionReceipt(callHash));
+    assertThat(bobReceipt.getStatus()).isEqualTo("0x0"); // this means the "call" failed which is what we expect because the group was locked!
+
+    // Charlie will not be able to generate a private transaction receipt because he never received the payload
+
+//    final PrivateTransactionReceipt charlieReceipt =
+//            charlie.execute(privacyTransactions.getPrivateTransactionReceipt(callHash));
+//    System.out.println("\n\n\nCHARLIE PRIVATE RECEIPT: \n" + charlieReceipt.getStatus());
+//    charlie.verify(
+//            privateTransactionVerifier.validPrivateTransactionReceipt(
+//                    callHash, aliceReceipt));
+
+
+    final String callHash2 = charlie.execute(
+            privateContractTransactions.callOnChainPermissioningSmartContract(
+                    eventEmitter.getContractAddress(),
+                    eventEmitter.store(BigInteger.valueOf(1337)).encodeFunctionCall(),
+                    charlie.getTransactionSigningKey(),
+                    POW_CHAIN_ID,
+                    charlie.getEnclaveKey(),
+                    privacyGroupId));
+
+    final PrivateTransactionReceipt expectedReceipt =
+            new PrivateTransactionReceipt(
+                    null,
+                    charlie.getAddress().toHexString(),
+                    eventEmitter.getContractAddress(),
+                    "0x",
+                    Collections.singletonList(new Log(false, "0x0", "0x0", callHash2, null, null, eventEmitter.getContractAddress(), "0x000000000000000000000000f17f52151ebef6c7334fad080c5704d77216b7320000000000000000000000000000000000000000000000000000000000000539", null, Collections.singletonList("0xc9db20adedc6cf2b5d25252b101ab03e124902a73fcb12b753f3d1aaa2d8f9f5"))),
+                    null,
+                    null,
+                    charlie.getEnclaveKey(),
+                    null,
+                    privxCreatePrivacyGroup.getPrivacyGroupId(),
+                    "0x1",
+                    null);
+
+    alice.verify(privateTransactionVerifier.validPrivateTransactionReceipt(callHash2, expectedReceipt));
+  }
+
 }

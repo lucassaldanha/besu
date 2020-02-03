@@ -41,7 +41,7 @@ public class PrivateTransactionVerifier {
     return new ExpectValidPrivacyGroupCreated(transactions, expected);
   }
 
-  public ExpectValidOnChainPrivacyGroupCreated validOnChainPrivacyGroupCreated(
+  public ExpectValidOnChainPrivacyGroupCreated validOnChainPrivacyGroupExists(
       final PrivacyGroup expected) {
     return new ExpectValidOnChainPrivacyGroupCreated(transactions, expected);
   }

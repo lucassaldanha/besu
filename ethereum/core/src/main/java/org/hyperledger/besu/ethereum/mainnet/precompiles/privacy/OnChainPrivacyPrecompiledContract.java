@@ -17,6 +17,7 @@ package org.hyperledger.besu.ethereum.mainnet.precompiles.privacy;
 import static org.hyperledger.besu.crypto.Hash.keccak256;
 import static org.hyperledger.besu.ethereum.privacy.PrivateStateRootResolver.EMPTY_ROOT_HASH;
 
+import org.hyperledger.besu.crypto.SECP256K1;
 import org.hyperledger.besu.enclave.Enclave;
 import org.hyperledger.besu.enclave.EnclaveClientException;
 import org.hyperledger.besu.enclave.EnclaveIOException;
@@ -32,6 +33,7 @@ import org.hyperledger.besu.ethereum.core.MutableAccount;
 import org.hyperledger.besu.ethereum.core.MutableWorldState;
 import org.hyperledger.besu.ethereum.core.PrivacyParameters;
 import org.hyperledger.besu.ethereum.core.ProcessableBlockHeader;
+import org.hyperledger.besu.ethereum.core.Wei;
 import org.hyperledger.besu.ethereum.core.WorldUpdater;
 import org.hyperledger.besu.ethereum.debug.TraceOptions;
 import org.hyperledger.besu.ethereum.mainnet.AbstractPrecompiledContract;
@@ -40,6 +42,7 @@ import org.hyperledger.besu.ethereum.privacy.PrivateTransaction;
 import org.hyperledger.besu.ethereum.privacy.PrivateTransactionProcessor;
 import org.hyperledger.besu.ethereum.privacy.PrivateTransactionReceipt;
 import org.hyperledger.besu.ethereum.privacy.PrivateTransactionWithMetadata;
+import org.hyperledger.besu.ethereum.privacy.Restriction;
 import org.hyperledger.besu.ethereum.privacy.storage.PrivacyGroupHeadBlockMap;
 import org.hyperledger.besu.ethereum.privacy.storage.PrivateBlockMetadata;
 import org.hyperledger.besu.ethereum.privacy.storage.PrivateStateStorage;
@@ -62,6 +65,11 @@ import org.apache.tuweni.bytes.Bytes32;
 import org.apache.tuweni.units.bigints.UInt256;
 
 public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContract {
+
+  // Dummy signature for transactions to not fail being processed.
+  private static final SECP256K1.Signature FAKE_SIGNATURE =
+          SECP256K1.Signature.create(SECP256K1.HALF_CURVE_ORDER, SECP256K1.HALF_CURVE_ORDER, (byte) 0);
+
   private static final Bytes PROXY_PRECOMPILED_CODE =
       Bytes.fromHexString(
           "0x608060405234801561001057600080fd5b50600436106100885760003560e01c806378b903371161005b57806378b90337146101ee578063a69df4b514610210578063f744b0891461021a578063f83d08ba146102f457610088565b80630b0235be1461008d5780633659cfe6146101105780635c60da1b1461015457806361544c911461019e575b600080fd5b6100b9600480360360208110156100a357600080fd5b81019080803590602001909291905050506102fe565b6040518080602001828103825283818151815260200191508051906020019060200280838360005b838110156100fc5780820151818401526020810190506100e1565b505050509050019250505060405180910390f35b6101526004803603602081101561012657600080fd5b81019080803573ffffffffffffffffffffffffffffffffffffffff169060200190929190505050610454565b005b61015c6104ba565b604051808273ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200191505060405180910390f35b6101d4600480360360408110156101b457600080fd5b8101908080359060200190929190803590602001909291905050506104df565b604051808215151515815260200191505060405180910390f35b6101f66105a5565b604051808215151515815260200191505060405180910390f35b610218610653565b005b6102da6004803603604081101561023057600080fd5b81019080803590602001909291908035906020019064010000000081111561025757600080fd5b82018360208201111561026957600080fd5b8035906020019184602083028401116401000000008311171561028b57600080fd5b919080806020026020016040519081016040528093929190818152602001838360200280828437600081840152601f19601f8201169050808301925050505050505091929192905050506106dc565b604051808215151515815260200191505060405180910390f35b6102fc6107e3565b005b606060008060009054906101000a900473ffffffffffffffffffffffffffffffffffffffff1690508073ffffffffffffffffffffffffffffffffffffffff16630b0235be846040518263ffffffff1660e01b81526004018082815260200191505060006040518083038186803b15801561037757600080fd5b505afa15801561038b573d6000803e3d6000fd5b505050506040513d6000823e3d601f19601f8201168201806040525060208110156103b557600080fd5b81019080805160405193929190846401000000008211156103d557600080fd5b838201915060208201858111156103eb57600080fd5b825186602082028301116401000000008211171561040857600080fd5b8083526020830192505050908051906020019060200280838360005b8381101561043f578082015181840152602081019050610424565b50505050905001604052505050915050919050565b8073ffffffffffffffffffffffffffffffffffffffff166000809054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1614156104ae57600080fd5b6104b78161086c565b50565b6000809054906101000a900473ffffffffffffffffffffffffffffffffffffffff1681565b6000806000809054906101000a900473ffffffffffffffffffffffffffffffffffffffff1690508073ffffffffffffffffffffffffffffffffffffffff166361544c9185856040518363ffffffff1660e01b81526004018083815260200182815260200192505050602060405180830381600087803b15801561056157600080fd5b505af1158015610575573d6000803e3d6000fd5b505050506040513d602081101561058b57600080fd5b810190808051906020019092919050505091505092915050565b6000806000809054906101000a900473ffffffffffffffffffffffffffffffffffffffff1690508073ffffffffffffffffffffffffffffffffffffffff166378b903376040518163ffffffff1660e01b815260040160206040518083038186803b15801561061257600080fd5b505afa158015610626573d6000803e3d6000fd5b505050506040513d602081101561063c57600080fd5b810190808051906020019092919050505091505090565b60008060009054906101000a900473ffffffffffffffffffffffffffffffffffffffff1690508073ffffffffffffffffffffffffffffffffffffffff1663a69df4b56040518163ffffffff1660e01b8152600401600060405180830381600087803b1580156106c157600080fd5b505af11580156106d5573d6000803e3d6000fd5b5050505050565b6000806000809054906101000a900473ffffffffffffffffffffffffffffffffffffffff1690508073ffffffffffffffffffffffffffffffffffffffff1663f744b08985856040518363ffffffff1660e01b81526004018083815260200180602001828103825283818151815260200191508051906020019060200280838360005b8381101561077957808201518184015260208101905061075e565b505050509050019350505050602060405180830381600087803b15801561079f57600080fd5b505af11580156107b3573d6000803e3d6000fd5b505050506040513d60208110156107c957600080fd5b810190808051906020019092919050505091505092915050565b60008060009054906101000a900473ffffffffffffffffffffffffffffffffffffffff1690508073ffffffffffffffffffffffffffffffffffffffff1663f83d08ba6040518163ffffffff1660e01b8152600401600060405180830381600087803b15801561085157600080fd5b505af1158015610865573d6000803e3d6000fd5b5050505050565b806000806101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff1602179055505056fea265627a7a723158205a6e759618cd7c7dbc4db9b59d81b71bbd3014d8062d366d9d5e920a0c9b6cc164736f6c634300050c0032");
@@ -194,6 +202,9 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
       // manually set the management contract address so the proxy can trust it
       mutableProxyPrecompiled.setStorageValue(
           UInt256.ZERO, UInt256.fromBytes(Bytes32.leftPad(Address.DEFAULT_PRIVACY_MANAGEMENT)));
+
+      privateWorldStateUpdater.commit();
+      disposablePrivateState.persist();
     }
 
     if (addKey != null && privacyGroupHeadBlockMap.get(privacyGroupId) == null) {
@@ -216,18 +227,19 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
                       new DebugOperationTracer(TraceOptions.DEFAULT),
                       messageFrame.getBlockHashLookup(),
                       privacyGroupId);
+
               if (result.isInvalid()
                   || !result.isSuccessful()
                   || !disposablePrivateState
                       .rootHash()
                       .equals(pt.getPrivateTransactionMetadata().getStateRoot())) {
                 LOG.error(
-                    "Failed to rehydrate private transaction {}: {} - Expecting root hash {}, and got {}",
-                    privateTransaction.getHash(),
-                    result.getValidationResult().getErrorMessage(),
+                    "Failed to rehydrate private transaction {} - Expecting root hash {}, but got {}",
+                    pt.getPrivateTransaction().toString(),
                     disposablePrivateState.rootHash().toHexString(),
                     pt.getPrivateTransactionMetadata().getStateRoot());
               }
+              // We need to commit here so we can verify that the last pyload locks the group further down
               privateWorldStateUpdater.commit();
               disposablePrivateState.persist();
             });
@@ -241,6 +253,34 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
         LOG.error("Can not communicate with enclave is it up?", e);
         throw e;
       }
+    }
+
+    // We need the "lock status" of the group for every single transaction but we don't want this call to affect the state
+    // privateTransactionProcessor.processTransaction(...) commits the state if the process was successful before it returns
+    final MutableWorldState canAddPrivateState =
+            privateWorldStateArchive.getMutable(disposablePrivateState.rootHash()).get();
+    final WorldUpdater canExecuteUpdater = canAddPrivateState.updater();
+
+    final PrivateTransactionProcessor.Result canExecuteResult =
+            privateTransactionProcessor.processTransaction(
+                    currentBlockchain,
+                    publicWorldState,
+                    canExecuteUpdater,
+                    currentBlockHeader,
+                    buildCanExecuteTransaction(privacyGroupId, privateWorldStateUpdater),
+                    messageFrame.getMiningBeneficiary(),
+                    new DebugOperationTracer(TraceOptions.DEFAULT),
+                    messageFrame.getBlockHashLookup(),
+                    privacyGroupId);
+
+    if (privateTransaction.getPayload().toHexString().startsWith("0xf744b089") && !canExecuteResult.getOutput().toHexString().endsWith("0")) {
+      LOG.info("Privacy Group {} is not locked while trying to add to group", privacyGroupId.toHexString());
+      return Bytes.EMPTY;
+    }
+
+    if (!privateTransaction.getPayload().toHexString().startsWith("0xf744b089") && canExecuteResult.getOutput().toHexString().endsWith("0")) {
+      LOG.info("Privacy Group {} is locked while trying to execute transaction", privacyGroupId.toHexString());
+      return Bytes.EMPTY;
     }
 
     final PrivateTransactionProcessor.Result result =
@@ -263,6 +303,12 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
       return Bytes.EMPTY;
     }
 
+    maybePersistState(messageFrame, currentBlockHash, privateTransaction, privacyGroupId, privacyGroupHeadBlockMap, disposablePrivateState, privateWorldStateUpdater, result);
+
+    return result.getOutput();
+  }
+
+  protected void maybePersistState(final MessageFrame messageFrame, final Hash currentBlockHash, final PrivateTransaction privateTransaction, final Bytes32 privacyGroupId, final PrivacyGroupHeadBlockMap privacyGroupHeadBlockMap, final MutableWorldState disposablePrivateState, final WorldUpdater privateWorldStateUpdater, final PrivateTransactionProcessor.Result result) {
     if (messageFrame.isPersistingState()) {
       LOG.trace(
           "Persisting private state {} for privacyGroup {}",
@@ -301,8 +347,22 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
       }
       privateStateUpdater.commit();
     }
+  }
 
-    return result.getOutput();
+  private PrivateTransaction buildCanExecuteTransaction(final Bytes privacyGroupId, final WorldUpdater privateWorldStateUpdater) {
+    return PrivateTransaction.builder()
+            .privateFrom(Bytes.EMPTY)
+            .privacyGroupId(privacyGroupId)
+            .restriction(Restriction.RESTRICTED)
+            .nonce(privateWorldStateUpdater.getAccount(Address.ZERO) != null ? privateWorldStateUpdater.getAccount(Address.ZERO).getNonce() : 0)
+            .gasPrice(Wei.of(1000))
+            .gasLimit(3000000)
+            .to(Address.PRIVACY_PROXY)
+            .sender(Address.ZERO)
+            .value(Wei.ZERO)
+            .payload(Bytes.fromHexString("0x78b90337"))
+            .signature(FAKE_SIGNATURE)
+            .build();
   }
 
   private void updatePrivateBlockMetadata(
