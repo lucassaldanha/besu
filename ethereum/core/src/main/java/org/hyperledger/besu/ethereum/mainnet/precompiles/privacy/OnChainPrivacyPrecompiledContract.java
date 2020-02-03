@@ -68,7 +68,7 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
 
   // Dummy signature for transactions to not fail being processed.
   private static final SECP256K1.Signature FAKE_SIGNATURE =
-          SECP256K1.Signature.create(SECP256K1.HALF_CURVE_ORDER, SECP256K1.HALF_CURVE_ORDER, (byte) 0);
+      SECP256K1.Signature.create(SECP256K1.HALF_CURVE_ORDER, SECP256K1.HALF_CURVE_ORDER, (byte) 0);
 
   private static final Bytes PROXY_PRECOMPILED_CODE =
       Bytes.fromHexString(
@@ -239,7 +239,8 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
                     disposablePrivateState.rootHash().toHexString(),
                     pt.getPrivateTransactionMetadata().getStateRoot());
               }
-              // We need to commit here so we can verify that the last pyload locks the group further down
+              // We need to commit here so we can verify that the last pyload locks the group
+              // further down
               privateWorldStateUpdater.commit();
               disposablePrivateState.persist();
             });
@@ -255,31 +256,39 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
       }
     }
 
-    // We need the "lock status" of the group for every single transaction but we don't want this call to affect the state
-    // privateTransactionProcessor.processTransaction(...) commits the state if the process was successful before it returns
+    // We need the "lock status" of the group for every single transaction but we don't want this
+    // call to affect the state
+    // privateTransactionProcessor.processTransaction(...) commits the state if the process was
+    // successful before it returns
     final MutableWorldState canAddPrivateState =
-            privateWorldStateArchive.getMutable(disposablePrivateState.rootHash()).get();
+        privateWorldStateArchive.getMutable(disposablePrivateState.rootHash()).get();
     final WorldUpdater canExecuteUpdater = canAddPrivateState.updater();
 
     final PrivateTransactionProcessor.Result canExecuteResult =
-            privateTransactionProcessor.processTransaction(
-                    currentBlockchain,
-                    publicWorldState,
-                    canExecuteUpdater,
-                    currentBlockHeader,
-                    buildCanExecuteTransaction(privacyGroupId, privateWorldStateUpdater),
-                    messageFrame.getMiningBeneficiary(),
-                    new DebugOperationTracer(TraceOptions.DEFAULT),
-                    messageFrame.getBlockHashLookup(),
-                    privacyGroupId);
+        privateTransactionProcessor.processTransaction(
+            currentBlockchain,
+            publicWorldState,
+            canExecuteUpdater,
+            currentBlockHeader,
+            buildCanExecuteTransaction(privacyGroupId, privateWorldStateUpdater),
+            messageFrame.getMiningBeneficiary(),
+            new DebugOperationTracer(TraceOptions.DEFAULT),
+            messageFrame.getBlockHashLookup(),
+            privacyGroupId);
 
-    if (privateTransaction.getPayload().toHexString().startsWith("0xf744b089") && !canExecuteResult.getOutput().toHexString().endsWith("0")) {
-      LOG.info("Privacy Group {} is not locked while trying to add to group", privacyGroupId.toHexString());
+    if (privateTransaction.getPayload().toHexString().startsWith("0xf744b089")
+        && !canExecuteResult.getOutput().toHexString().endsWith("0")) {
+      LOG.info(
+          "Privacy Group {} is not locked while trying to add to group",
+          privacyGroupId.toHexString());
       return Bytes.EMPTY;
     }
 
-    if (!privateTransaction.getPayload().toHexString().startsWith("0xf744b089") && canExecuteResult.getOutput().toHexString().endsWith("0")) {
-      LOG.info("Privacy Group {} is locked while trying to execute transaction", privacyGroupId.toHexString());
+    if (!privateTransaction.getPayload().toHexString().startsWith("0xf744b089")
+        && canExecuteResult.getOutput().toHexString().endsWith("0")) {
+      LOG.info(
+          "Privacy Group {} is locked while trying to execute transaction",
+          privacyGroupId.toHexString());
       return Bytes.EMPTY;
     }
 
@@ -303,12 +312,28 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
       return Bytes.EMPTY;
     }
 
-    maybePersistState(messageFrame, currentBlockHash, privateTransaction, privacyGroupId, privacyGroupHeadBlockMap, disposablePrivateState, privateWorldStateUpdater, result);
+    maybePersistState(
+        messageFrame,
+        currentBlockHash,
+        privateTransaction,
+        privacyGroupId,
+        privacyGroupHeadBlockMap,
+        disposablePrivateState,
+        privateWorldStateUpdater,
+        result);
 
     return result.getOutput();
   }
 
-  protected void maybePersistState(final MessageFrame messageFrame, final Hash currentBlockHash, final PrivateTransaction privateTransaction, final Bytes32 privacyGroupId, final PrivacyGroupHeadBlockMap privacyGroupHeadBlockMap, final MutableWorldState disposablePrivateState, final WorldUpdater privateWorldStateUpdater, final PrivateTransactionProcessor.Result result) {
+  protected void maybePersistState(
+      final MessageFrame messageFrame,
+      final Hash currentBlockHash,
+      final PrivateTransaction privateTransaction,
+      final Bytes32 privacyGroupId,
+      final PrivacyGroupHeadBlockMap privacyGroupHeadBlockMap,
+      final MutableWorldState disposablePrivateState,
+      final WorldUpdater privateWorldStateUpdater,
+      final PrivateTransactionProcessor.Result result) {
     if (messageFrame.isPersistingState()) {
       LOG.trace(
           "Persisting private state {} for privacyGroup {}",
@@ -349,20 +374,24 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
     }
   }
 
-  private PrivateTransaction buildCanExecuteTransaction(final Bytes privacyGroupId, final WorldUpdater privateWorldStateUpdater) {
+  private PrivateTransaction buildCanExecuteTransaction(
+      final Bytes privacyGroupId, final WorldUpdater privateWorldStateUpdater) {
     return PrivateTransaction.builder()
-            .privateFrom(Bytes.EMPTY)
-            .privacyGroupId(privacyGroupId)
-            .restriction(Restriction.RESTRICTED)
-            .nonce(privateWorldStateUpdater.getAccount(Address.ZERO) != null ? privateWorldStateUpdater.getAccount(Address.ZERO).getNonce() : 0)
-            .gasPrice(Wei.of(1000))
-            .gasLimit(3000000)
-            .to(Address.PRIVACY_PROXY)
-            .sender(Address.ZERO)
-            .value(Wei.ZERO)
-            .payload(Bytes.fromHexString("0x78b90337"))
-            .signature(FAKE_SIGNATURE)
-            .build();
+        .privateFrom(Bytes.EMPTY)
+        .privacyGroupId(privacyGroupId)
+        .restriction(Restriction.RESTRICTED)
+        .nonce(
+            privateWorldStateUpdater.getAccount(Address.ZERO) != null
+                ? privateWorldStateUpdater.getAccount(Address.ZERO).getNonce()
+                : 0)
+        .gasPrice(Wei.of(1000))
+        .gasLimit(3000000)
+        .to(Address.PRIVACY_PROXY)
+        .sender(Address.ZERO)
+        .value(Wei.ZERO)
+        .payload(Bytes.fromHexString("0x78b90337"))
+        .signature(FAKE_SIGNATURE)
+        .build();
   }
 
   private void updatePrivateBlockMetadata(

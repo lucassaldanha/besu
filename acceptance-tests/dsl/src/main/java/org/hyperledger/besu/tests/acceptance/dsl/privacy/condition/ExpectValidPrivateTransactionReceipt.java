@@ -38,16 +38,20 @@ public class ExpectValidPrivateTransactionReceipt implements PrivateCondition {
 
   @Override
   public void verify(final PrivacyNode node) {
-    final PrivateTransactionReceipt actualReceipt = node.execute(transactions.getPrivateTransactionReceipt(transactionHash));
+    final PrivateTransactionReceipt actualReceipt =
+        node.execute(transactions.getPrivateTransactionReceipt(transactionHash));
     assertThat(actualReceipt)
-            .usingRecursiveComparison()
-            .ignoringFields("commitmentHash", "logs")
-            .isEqualTo(expectedReceipt);
+        .usingRecursiveComparison()
+        .ignoringFields("commitmentHash", "logs")
+        .isEqualTo(expectedReceipt);
 
     assertThat(actualReceipt.getLogs().size()).isEqualTo(expectedReceipt.getLogs().size());
 
     for (int i = 0; i < expectedReceipt.getLogs().size(); i++) {
-      assertThat(actualReceipt.getLogs().get(i)).usingRecursiveComparison().ignoringFields("blockHash", "blockNumber").isEqualTo(expectedReceipt.getLogs().get(i));
+      assertThat(actualReceipt.getLogs().get(i))
+          .usingRecursiveComparison()
+          .ignoringFields("blockHash", "blockNumber")
+          .isEqualTo(expectedReceipt.getLogs().get(i));
     }
   }
 }
