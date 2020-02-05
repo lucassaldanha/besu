@@ -66,7 +66,7 @@ public class PrivacyRequestFactory {
       final Base64String privacyGroupId, final PrivacyNode adder, final List<String> addresses)
       throws IOException, TransactionException {
 
-    lockTheContract(adder, privacyGroupId);
+    privxLockContract(adder, privacyGroupId);
 
     final BigInteger nonce =
         besuClient
@@ -99,7 +99,7 @@ public class PrivacyRequestFactory {
         .getTransactionHash();
   }
 
-  private void lockTheContract(final PrivacyNode locker, final Base64String privacyGroupId)
+  public String privxLockContract(final PrivacyNode locker, final Base64String privacyGroupId)
       throws IOException, TransactionException {
     final BigInteger nonce =
         besuClient
@@ -127,8 +127,9 @@ public class PrivacyRequestFactory {
             .send()
             .getTransactionHash();
 
-    new PollingPrivateTransactionReceiptProcessor(besuClient, 3000, 10)
-        .waitForTransactionReceipt(transactionHash);
+    return new PollingPrivateTransactionReceiptProcessor(besuClient, 3000, 10)
+        .waitForTransactionReceipt(transactionHash)
+        .getcommitmentHash();
   }
 
   public PrivxCreatePrivacyGroup privxCreatePrivacyGroup(

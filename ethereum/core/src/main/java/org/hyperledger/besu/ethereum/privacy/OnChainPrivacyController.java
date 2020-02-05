@@ -92,9 +92,10 @@ public class OnChainPrivacyController {
           final BytesValueRLPInput input =
               new BytesValueRLPInput(
                   Bytes.fromBase64String(new String(receiveResponse.getPayload(), UTF_8)), false);
-
+          input.enterList();
           privateTransactions.add(
               new PrivateTransactionWithMetadata(PrivateTransaction.readFrom(input), h));
+          input.leaveListLenient();
         });
     return privateTransactions;
   }

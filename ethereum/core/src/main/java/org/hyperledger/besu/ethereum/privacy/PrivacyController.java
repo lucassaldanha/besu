@@ -14,6 +14,10 @@
  */
 package org.hyperledger.besu.ethereum.privacy;
 
+import static org.hyperledger.besu.ethereum.privacy.group.OnChainGroupManagement.ADD_TO_GROUP_METHOD_SIGNATURE;
+import static org.hyperledger.besu.ethereum.privacy.group.OnChainGroupManagement.GET_PARTICIPANTS_METHOD_SIGNATURE;
+import static org.hyperledger.besu.ethereum.privacy.group.OnChainGroupManagement.GET_VERSION_METHOD_SIGNATURE;
+
 import org.hyperledger.besu.enclave.Enclave;
 import org.hyperledger.besu.enclave.EnclaveClientException;
 import org.hyperledger.besu.enclave.types.PrivacyGroup;
@@ -53,8 +57,6 @@ import org.apache.tuweni.units.bigints.UInt256;
 public class PrivacyController {
 
   private static final Logger LOG = LogManager.getLogger();
-  private static final String ADD_TO_GROUP_METHOD_SIGNATURE = "0xf744b089";
-  private static final String GET_PARTICIPANTS_METHOD_SIGNATURE = "0x0b0235be";
 
   private final Blockchain blockchain;
   private final Enclave enclave;
@@ -220,8 +222,24 @@ public class PrivacyController {
 
   private SendResponse sendRequest(
       final PrivateTransaction privateTransaction, final String enclavePublicKey) {
+
+    final Optional<PrivateTransactionProcessor.Result> process =
+        privateTransactionSimulator.process(
+            privateTransaction.getPrivacyGroupId().get().toBase64String(),
+            enclavePublicKey,
+            buildCallParams(
+                Bytes.fromBase64String(enclavePublicKey), GET_VERSION_METHOD_SIGNATURE));
+
     final BytesValueRLPOutput rlpOutput = new BytesValueRLPOutput();
+    rlpOutput.startList();
     privateTransaction.writeTo(rlpOutput);
+    process.ifPresent(
+        result -> {
+          if (!result.getOutput().toHexString().equals("0x")) {
+            rlpOutput.writeBytes(result.getOutput());
+          }
+        });
+    rlpOutput.endList();
     final String payload = rlpOutput.encoded().toBase64String();
 
     final List<String> privateFor = resolvePrivateFor(privateTransaction, enclavePublicKey);
@@ -280,7 +298,10 @@ public class PrivacyController {
   public boolean isGroupAdditionTransaction(final PrivateTransaction privateTransaction) {
     return privateTransaction.getTo().isPresent()
         && privateTransaction.getTo().get().equals(Address.PRIVACY_PROXY)
-        && privateTransaction.getPayload().toHexString().startsWith(ADD_TO_GROUP_METHOD_SIGNATURE);
+        && privateTransaction
+            .getPayload()
+            .toHexString()
+            .startsWith(ADD_TO_GROUP_METHOD_SIGNATURE.toHexString());
   }
 
   private List<String> getParticipantsFromParameter(final Bytes input) {
@@ -299,7 +320,8 @@ public class PrivacyController {
         privateTransactionSimulator.process(
             privacyGroupId.toBase64String(),
             enclavePublicKey,
-            buildGetParticipantsCallParams(Bytes.fromBase64String(enclavePublicKey)));
+            buildCallParams(
+                Bytes.fromBase64String(enclavePublicKey), GET_PARTICIPANTS_METHOD_SIGNATURE));
 
     if (privateTransactionSimulatorResultOptional.isPresent()
         && privateTransactionSimulatorResultOptional.get().isSuccessful()) {
@@ -329,15 +351,14 @@ public class PrivacyController {
     return decodedElements;
   }
 
-  private CallParameter buildGetParticipantsCallParams(final Bytes enclavePublicKey) {
+  private CallParameter buildCallParams(final Bytes enclavePublicKey, final Bytes methodCall) {
     return new CallParameter(
         Address.ZERO,
         Address.PRIVACY_PROXY,
         3000000,
         Wei.of(1000),
         Wei.ZERO,
-        Bytes.concatenate(
-            Bytes.fromHexString(GET_PARTICIPANTS_METHOD_SIGNATURE), enclavePublicKey));
+        Bytes.concatenate(methodCall, enclavePublicKey));
   }
 
   private String getPrivacyGroupId(final String key, final String privateFrom) {

@@ -231,7 +231,9 @@ public class OnChainPrivacyAcceptanceTest extends PrivacyAcceptanceTestBase {
             eventEmitter.getContractAddress(), alice.getAddress().toString())
         .verify(eventEmitter);
 
-    final String transactionHash =
+    final String lockHash = bob.execute(privacyTransactions.privxLockContract(privacyGroupId, bob));
+
+    final String addHash =
         bob.execute(privacyTransactions.addToPrivacyGroup(privacyGroupId, bob, charlie));
 
     final String callHash =
@@ -266,7 +268,7 @@ public class OnChainPrivacyAcceptanceTest extends PrivacyAcceptanceTestBase {
             expectedGroupAfterCharlieIsAdded));
 
     final Optional<TransactionReceipt> aliceAddReceipt =
-        alice.execute(ethTransactions.getTransactionReceipt(transactionHash));
+        alice.execute(ethTransactions.getTransactionReceipt(addHash));
     assertThat(aliceAddReceipt.get().getStatus())
         .isEqualTo("0x1"); // this means the PMT for the "add" succeeded which is what we expect
 
