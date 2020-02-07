@@ -300,16 +300,6 @@ public class OnChainPrivacyAcceptanceTest extends PrivacyAcceptanceTestBase {
             "0x0"); // this means the "call" failed which is what we expect because the group was
     // locked!
 
-    // Charlie will not be able to generate a private transaction receipt because he never received
-    // the payload
-
-    //    final PrivateTransactionReceipt charlieReceipt =
-    //            charlie.execute(privacyTransactions.getPrivateTransactionReceipt(callHash));
-    //    System.out.println("\n\n\nCHARLIE PRIVATE RECEIPT: \n" + charlieReceipt.getStatus());
-    //    charlie.verify(
-    //            privateTransactionVerifier.validPrivateTransactionReceipt(
-    //                    callHash, aliceReceipt));
-
     final String callHash2 =
         charlie.execute(
             privateContractTransactions.callOnChainPermissioningSmartContract(
@@ -349,5 +339,11 @@ public class OnChainPrivacyAcceptanceTest extends PrivacyAcceptanceTestBase {
 
     alice.verify(
         privateTransactionVerifier.validPrivateTransactionReceipt(callHash2, expectedReceipt));
+
+    final PrivateTransactionReceipt aliceLockReceipt =
+        alice.execute(privacyTransactions.getPrivateTransactionReceipt(lockHash));
+
+    charlie.verify(
+        privateTransactionVerifier.validPrivateTransactionReceipt(lockHash, aliceLockReceipt));
   }
 }
