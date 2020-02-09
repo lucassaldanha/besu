@@ -74,6 +74,7 @@ public class PrivGetPrivateTransaction implements JsonRpcMethod {
       final ReceiveResponse receiveResponse =
           privacyController.retrieveTransaction(
               resultTransaction.getTransaction().getPayload().toBase64String(),
+              resultTransaction.getBlockHash().orElseThrow(),
               enclavePublicKeyProvider.getEnclaveKey(requestContext.getUser()));
       LOG.trace("Received transaction information");
 

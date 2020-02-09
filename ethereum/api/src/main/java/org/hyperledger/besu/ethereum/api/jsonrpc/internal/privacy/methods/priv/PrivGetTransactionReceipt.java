@@ -89,8 +89,8 @@ public class PrivGetTransactionReceipt implements JsonRpcMethod {
     final Transaction pmtTransaction =
         blockBody.getTransactions().get(pmtLocation.getTransactionIndex());
 
-    final Hash blockhash = pmtLocation.getBlockHash();
-    final long blockNumber = blockchain.getBlockchain().getBlockHeader(blockhash).get().getNumber();
+    final Hash blockHash = pmtLocation.getBlockHash();
+    final long blockNumber = blockchain.getBlockchain().getBlockHeader(blockHash).get().getNumber();
 
     final PrivateTransaction privateTransaction;
     final String privacyGroupId;
@@ -98,6 +98,7 @@ public class PrivGetTransactionReceipt implements JsonRpcMethod {
       final ReceiveResponse receiveResponse =
           privacyController.retrieveTransaction(
               pmtTransaction.getPayload().slice(0, 32).toBase64String(),
+              blockHash,
               enclavePublicKeyProvider.getEnclaveKey(requestContext.getUser()));
       LOG.trace("Received private transaction information");
 
@@ -147,7 +148,7 @@ public class PrivGetTransactionReceipt implements JsonRpcMethod {
     final PrivateTransactionReceipt privateTransactioReceipt =
         privacyParameters
             .getPrivateStateStorage()
-            .getTransactionReceipt(blockhash, txHash)
+            .getTransactionReceipt(blockHash, txHash)
             .orElse(PrivateTransactionReceipt.EMPTY);
 
     LOG.trace("Processed private transaction receipt");
@@ -159,7 +160,7 @@ public class PrivGetTransactionReceipt implements JsonRpcMethod {
             privateTransaction.getTo().map(Address::toString).orElse(null),
             privateTransactioReceipt.getLogs(),
             privateTransactioReceipt.getOutput(),
-            blockhash,
+            blockHash,
             blockNumber,
             pmtLocation.getTransactionIndex(),
             pmtTransaction.getHash(),

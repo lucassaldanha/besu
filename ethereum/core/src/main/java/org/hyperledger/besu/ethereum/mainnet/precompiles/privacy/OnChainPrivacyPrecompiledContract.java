@@ -218,60 +218,103 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
         final List<PrivateTransactionWithMetadata> privateTransactionWithMetadataList =
             deserializeAddToGroupPayload(
                 Bytes.wrap(Base64.getDecoder().decode(addReceiveResponse.getPayload())));
-        privateTransactionWithMetadataList.forEach(
-            privateTransactionWithMetadata -> {
-              final PrivateTransactionProcessor.Result result =
-                  privateTransactionProcessor.processTransaction(
-                      currentBlockchain,
-                      publicWorldState,
-                      privateWorldStateUpdater,
-                      currentBlockHeader,
-                      privateTransactionWithMetadata.getPrivateTransaction(),
-                      messageFrame.getMiningBeneficiary(),
-                      new DebugOperationTracer(TraceOptions.DEFAULT),
-                      messageFrame.getBlockHashLookup(),
-                      privacyGroupId);
 
-              if (result.isInvalid()
-                  || !result.isSuccessful()
-                  || !disposablePrivateState
-                      .rootHash()
-                      .equals(
-                          privateTransactionWithMetadata
-                              .getPrivateTransactionMetadata()
-                              .getStateRoot())) {
-                LOG.error(
-                    "Failed to rehydrate private transaction {} - Expecting root hash {}, but got {}",
-                    privateTransactionWithMetadata.getPrivateTransaction().toString(),
-                    disposablePrivateState.rootHash().toHexString(),
-                    privateTransactionWithMetadata.getPrivateTransactionMetadata().getStateRoot());
-              }
-              // We need to commit here so we can verify that the last payload locks the group
-              // further down
+        long lastBlockNumber = -1;
+        for (int i = 0; i < privateTransactionWithMetadataList.size(); i++) {
+          final PrivateTransactionWithMetadata privateTransactionWithMetadata =
+              privateTransactionWithMetadataList.get(i);
+          final PrivateTransactionProcessor.Result result =
+              privateTransactionProcessor.processTransaction(
+                  currentBlockchain,
+                  publicWorldState,
+                  privateWorldStateUpdater,
+                  currentBlockHeader,
+                  privateTransactionWithMetadata.getPrivateTransaction(),
+                  messageFrame.getMiningBeneficiary(),
+                  new DebugOperationTracer(TraceOptions.DEFAULT),
+                  messageFrame.getBlockHashLookup(),
+                  privacyGroupId);
 
-              if (messageFrame.isPersistingState()) {
-                final TransactionLocation markerTransactionLocation =
-                    currentBlockchain
-                        .getTransactionLocation(
-                            privateTransactionWithMetadata
-                                .getPrivateTransactionMetadata()
-                                .getPrivacyMarkerTransactionHash())
-                        .orElseThrow();
-                persistePrivateState(
-                    privateTransactionWithMetadata
-                        .getPrivateTransactionMetadata()
-                        .getPrivacyMarkerTransactionHash(),
-                    markerTransactionLocation.getBlockHash(),
-                    privateTransactionWithMetadata.getPrivateTransaction(),
-                    privacyGroupId,
-                    privacyGroupHeadBlockMap,
-                    disposablePrivateState,
-                    privateWorldStateUpdater,
-                    result);
+          if (result.isInvalid()
+              || !result.isSuccessful()
+              || !disposablePrivateState
+                  .rootHash()
+                  .equals(
+                      privateTransactionWithMetadata
+                          .getPrivateTransactionMetadata()
+                          .getStateRoot())) {
+            LOG.error(
+                "Failed to rehydrate private transaction {} - Expecting root hash {}, but got {}",
+                privateTransactionWithMetadata.getPrivateTransaction().toString(),
+                disposablePrivateState.rootHash().toHexString(),
+                privateTransactionWithMetadata.getPrivateTransactionMetadata().getStateRoot());
+          }
+          // We need to commit here so we can verify that the last payload locks the group
+          // further down
+
+          if (messageFrame.isPersistingState()) {
+            final TransactionLocation markerTransactionLocation =
+                currentBlockchain
+                    .getTransactionLocation(
+                        privateTransactionWithMetadata
+                            .getPrivateTransactionMetadata()
+                            .getPrivacyMarkerTransactionHash())
+                    .orElseThrow();
+            final PrivacyGroupHeadBlockMap temp =
+                privateStateStorage
+                    .getPrivacyGroupHeadBlockMap(markerTransactionLocation.getBlockHash())
+                    .orElse(PrivacyGroupHeadBlockMap.EMPTY);
+            persistePrivateState(
+                privateTransactionWithMetadata
+                    .getPrivateTransactionMetadata()
+                    .getPrivacyMarkerTransactionHash(),
+                markerTransactionLocation.getBlockHash(),
+                privateTransactionWithMetadata.getPrivateTransaction(),
+                privacyGroupId,
+                temp,
+                disposablePrivateState,
+                privateWorldStateUpdater,
+                result);
+
+            final BlockHeader blockHeader =
+                currentBlockchain
+                    .getBlockHeader(markerTransactionLocation.getBlockHash())
+                    .orElseThrow();
+            final long blockNumber = blockHeader.getNumber();
+
+            if (lastBlockNumber == -1) {
+              lastBlockNumber = blockNumber;
+            }
+
+            if (blockNumber - lastBlockNumber > 1) {
+              for (long j = lastBlockNumber + 1; j < blockNumber; j++) {
+                final BlockHeader theBlockHeader =
+                    currentBlockchain.getBlockHeader(j).orElseThrow();
+                final PrivacyGroupHeadBlockMap thePrivacyGroupHeadBlockMap =
+                    privateStateStorage
+                        .getPrivacyGroupHeadBlockMap(theBlockHeader.getHash())
+                        .orElse(PrivacyGroupHeadBlockMap.EMPTY);
+                final PrivateStateStorage.Updater privateStateUpdater =
+                    privateStateStorage.updater();
+                thePrivacyGroupHeadBlockMap.put(
+                    Bytes32.wrap(privacyGroupId),
+                    currentBlockchain.getBlockHeader(lastBlockNumber).get().getHash());
+                privateStateUpdater.putPrivacyGroupHeadBlockMap(
+                    currentBlockHash, new PrivacyGroupHeadBlockMap(thePrivacyGroupHeadBlockMap));
+                privateStateUpdater.commit();
               }
-              privateWorldStateUpdater.commit();
-              disposablePrivateState.persist();
-            });
+            }
+
+            lastBlockNumber = blockNumber;
+          }
+        }
+        if (messageFrame.isPersistingState()) {
+          final PrivateStateStorage.Updater privateStateUpdater = privateStateStorage.updater();
+          privateStateUpdater.putAddDataKey(
+              privacyGroupId, Bytes32.wrap(Bytes.fromBase64String(addKey)));
+          privateStateUpdater.commit();
+        }
+
       } catch (final EnclaveClientException e) {
         LOG.debug("Can not fetch private transaction payload with key {}", key, e);
         return Bytes.EMPTY;
@@ -478,7 +521,7 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
         Bytes32.wrap(currentBlockHash), Bytes32.wrap(privacyGroupId), privateBlockMetadata);
   }
 
-  public List<PrivateTransactionWithMetadata> deserializeAddToGroupPayload(
+  private List<PrivateTransactionWithMetadata> deserializeAddToGroupPayload(
       final Bytes encodedAddToGroupPayload) {
     final ArrayList<PrivateTransactionWithMetadata> deserializedResponse = new ArrayList<>();
     final BytesValueRLPInput bytesValueRLPInput =

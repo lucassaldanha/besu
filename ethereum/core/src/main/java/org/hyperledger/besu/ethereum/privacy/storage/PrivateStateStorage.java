@@ -28,6 +28,8 @@ public interface PrivateStateStorage {
 
   Optional<PrivacyGroupHeadBlockMap> getPrivacyGroupHeadBlockMap(Bytes32 blockHash);
 
+  Optional<Bytes32> getAddDataKey(Bytes32 privacyGroupId);
+
   boolean isPrivateStateAvailable(Bytes32 transactionHash);
 
   boolean isWorldStateAvailable(Bytes32 rootHash);
@@ -43,6 +45,8 @@ public interface PrivateStateStorage {
         Bytes32 blockHash, Bytes32 privacyGroupId, PrivateBlockMetadata metadata);
 
     Updater putPrivacyGroupHeadBlockMap(Bytes32 blockHash, PrivacyGroupHeadBlockMap map);
+
+    Updater putAddDataKey(Bytes32 privacyGroupId, Bytes32 addDataKey);
 
     void commit();
 

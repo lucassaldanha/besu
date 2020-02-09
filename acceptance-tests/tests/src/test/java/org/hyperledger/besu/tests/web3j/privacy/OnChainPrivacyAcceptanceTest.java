@@ -236,6 +236,7 @@ public class OnChainPrivacyAcceptanceTest extends PrivacyAcceptanceTestBase {
     final String addHash =
         bob.execute(privacyTransactions.addToPrivacyGroup(privacyGroupId, bob, charlie));
 
+    System.out.println("get value: " + eventEmitter.value().encodeFunctionCall());
     final String callHash =
         alice.execute(
             privateContractTransactions.callOnChainPermissioningSmartContract(
@@ -300,7 +301,7 @@ public class OnChainPrivacyAcceptanceTest extends PrivacyAcceptanceTestBase {
             "0x0"); // this means the "call" failed which is what we expect because the group was
     // locked!
 
-    final String callHash2 =
+    final String storeHash =
         charlie.execute(
             privateContractTransactions.callOnChainPermissioningSmartContract(
                 eventEmitter.getContractAddress(),
@@ -321,7 +322,7 @@ public class OnChainPrivacyAcceptanceTest extends PrivacyAcceptanceTestBase {
                     false,
                     "0x0",
                     "0x0",
-                    callHash2,
+                    storeHash,
                     null,
                     null,
                     eventEmitter.getContractAddress(),
@@ -338,7 +339,13 @@ public class OnChainPrivacyAcceptanceTest extends PrivacyAcceptanceTestBase {
             null);
 
     alice.verify(
-        privateTransactionVerifier.validPrivateTransactionReceipt(callHash2, expectedReceipt));
+        privateTransactionVerifier.validPrivateTransactionReceipt(storeHash, expectedReceipt));
+
+    bob.verify(
+        privateTransactionVerifier.validPrivateTransactionReceipt(storeHash, expectedReceipt));
+
+    charlie.verify(
+        privateTransactionVerifier.validPrivateTransactionReceipt(storeHash, expectedReceipt));
 
     final PrivateTransactionReceipt aliceLockReceipt =
         alice.execute(privacyTransactions.getPrivateTransactionReceipt(lockHash));

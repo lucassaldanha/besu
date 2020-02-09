@@ -88,7 +88,12 @@ public class OnChainPrivacyController {
               blockchain.getTransactionByHash(h.getPrivacyMarkerTransactionHash()).orElseThrow();
           final ReceiveResponse receiveResponse =
               privacyController.retrieveTransaction(
-                  privateMarkerTransaction.getPayload().toBase64String(), enclavePublicKey);
+                  privateMarkerTransaction.getPayload().toBase64String(),
+                  blockchain
+                      .getTransactionLocation(h.getPrivacyMarkerTransactionHash())
+                      .orElseThrow()
+                      .getBlockHash(),
+                  enclavePublicKey);
           final BytesValueRLPInput input =
               new BytesValueRLPInput(
                   Bytes.fromBase64String(new String(receiveResponse.getPayload(), UTF_8)), false);

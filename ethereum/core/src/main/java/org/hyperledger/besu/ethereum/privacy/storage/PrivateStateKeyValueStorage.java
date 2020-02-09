@@ -29,10 +29,10 @@ import org.apache.tuweni.bytes.Bytes32;
 
 public class PrivateStateKeyValueStorage implements PrivateStateStorage {
 
-  private static final Bytes TX_RECEIPT_SUFFIX = Bytes.of("RECEIPT".getBytes(UTF_8));
-  private static final Bytes METADATA_KEY_SUFFIX = Bytes.of("METADATA".getBytes(UTF_8));
-  private static final Bytes PRIVACY_GROUP_HEAD_BLOCK_MAP_SUFFIX =
-      Bytes.of("PGHEADMAP".getBytes(UTF_8));
+  private static final Bytes TX_RECEIPT_SUFFIX = Bytes.of("0".getBytes(UTF_8));
+  private static final Bytes METADATA_KEY_SUFFIX = Bytes.of("1".getBytes(UTF_8));
+  private static final Bytes PRIVACY_GROUP_HEAD_BLOCK_MAP_SUFFIX = Bytes.of("2".getBytes(UTF_8));
+  private static final Bytes ADD_DATA_KEY = Bytes.of("3".getBytes(UTF_8));
 
   private final KeyValueStorage keyValueStorage;
 
@@ -59,6 +59,11 @@ public class PrivateStateKeyValueStorage implements PrivateStateStorage {
   public Optional<PrivacyGroupHeadBlockMap> getPrivacyGroupHeadBlockMap(final Bytes32 blockHash) {
     return get(blockHash, PRIVACY_GROUP_HEAD_BLOCK_MAP_SUFFIX)
         .map(b -> PrivacyGroupHeadBlockMap.readFrom(new BytesValueRLPInput(b, false)));
+  }
+
+  @Override
+  public Optional<Bytes32> getAddDataKey(final Bytes32 privacyGroupId) {
+    return get(privacyGroupId, ADD_DATA_KEY).map(Bytes32::wrap);
   }
 
   @Override
@@ -118,6 +123,13 @@ public class PrivateStateKeyValueStorage implements PrivateStateStorage {
     public PrivateStateStorage.Updater putPrivacyGroupHeadBlockMap(
         final Bytes32 blockHash, final PrivacyGroupHeadBlockMap map) {
       set(blockHash, PRIVACY_GROUP_HEAD_BLOCK_MAP_SUFFIX, RLP.encode(map::writeTo));
+      return this;
+    }
+
+    @Override
+    public PrivateStateStorage.Updater putAddDataKey(
+        final Bytes32 privacyGroupId, final Bytes32 addDataKey) {
+      set(privacyGroupId, ADD_DATA_KEY, addDataKey);
       return this;
     }
 
