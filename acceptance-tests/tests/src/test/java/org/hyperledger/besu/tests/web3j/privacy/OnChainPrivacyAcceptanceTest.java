@@ -203,7 +203,7 @@ public class OnChainPrivacyAcceptanceTest extends PrivacyAcceptanceTestBase {
   @Test
   public void canAddParticipantToGroup1() {
     final PrivxCreatePrivacyGroup privxCreatePrivacyGroup =
-        alice.execute(privacyTransactions.createOnChainPrivacyGroup(alice, alice, bob));
+        alice.execute(privacyTransactions.createOnChainPrivacyGroup(alice, alice));
 
     assertThat(privxCreatePrivacyGroup).isNotNull();
 
@@ -214,10 +214,10 @@ public class OnChainPrivacyAcceptanceTest extends PrivacyAcceptanceTestBase {
             PrivacyGroup.Type.PANTHEON,
             "",
             "",
-            Base64String.wrapList(alice.getEnclaveKey(), bob.getEnclaveKey()));
+            Base64String.wrapList(alice.getEnclaveKey()));
 
     alice.verify(privateTransactionVerifier.validOnChainPrivacyGroupExists(expectedGroup));
-    bob.verify(privateTransactionVerifier.validOnChainPrivacyGroupExists(expectedGroup));
+
     final EventEmitter eventEmitter =
         alice.execute(
             privateContractTransactions.createSmartContractWithPrivacyGroupId(
@@ -231,12 +231,26 @@ public class OnChainPrivacyAcceptanceTest extends PrivacyAcceptanceTestBase {
             eventEmitter.getContractAddress(), alice.getAddress().toString())
         .verify(eventEmitter);
 
-    final String lockHash = bob.execute(privacyTransactions.privxLockContract(privacyGroupId, bob));
-
     final String addHash =
-        bob.execute(privacyTransactions.addToPrivacyGroup(privacyGroupId, bob, charlie));
+        alice.execute(privacyTransactions.addToPrivacyGroup(privacyGroupId, alice, bob));
 
-    System.out.println("get value: " + eventEmitter.value().encodeFunctionCall());
+    final PrivacyGroup expectedGroupAfterBobIsAdded =
+            new PrivacyGroup(
+                    privacyGroupId,
+                    PrivacyGroup.Type.PANTHEON,
+                    "",
+                    "",
+                    Base64String.wrapList(
+                            alice.getEnclaveKey(), bob.getEnclaveKey()));
+
+    alice.verify(
+            privateTransactionVerifier.validOnChainPrivacyGroupExists(
+                    expectedGroupAfterBobIsAdded));
+
+    bob.verify(
+            privateTransactionVerifier.validOnChainPrivacyGroupExists(
+                    expectedGroupAfterBobIsAdded));
+
     final String callHash =
         alice.execute(
             privateContractTransactions.callOnChainPermissioningSmartContract(
@@ -246,6 +260,9 @@ public class OnChainPrivacyAcceptanceTest extends PrivacyAcceptanceTestBase {
                 POW_CHAIN_ID,
                 alice.getEnclaveKey(),
                 privacyGroupId));
+
+    final String bobAddHash =
+            bob.execute(privacyTransactions.addToPrivacyGroup(privacyGroupId, bob, charlie));
 
     final PrivacyGroup expectedGroupAfterCharlieIsAdded =
         new PrivacyGroup(
@@ -269,7 +286,7 @@ public class OnChainPrivacyAcceptanceTest extends PrivacyAcceptanceTestBase {
             expectedGroupAfterCharlieIsAdded));
 
     final Optional<TransactionReceipt> aliceAddReceipt =
-        alice.execute(ethTransactions.getTransactionReceipt(addHash));
+        alice.execute(ethTransactions.getTransactionReceipt(bobAddHash));
     assertThat(aliceAddReceipt.get().getStatus())
         .isEqualTo("0x1"); // this means the PMT for the "add" succeeded which is what we expect
 
@@ -347,10 +364,5 @@ public class OnChainPrivacyAcceptanceTest extends PrivacyAcceptanceTestBase {
     charlie.verify(
         privateTransactionVerifier.validPrivateTransactionReceipt(storeHash, expectedReceipt));
 
-    final PrivateTransactionReceipt aliceLockReceipt =
-        alice.execute(privacyTransactions.getPrivateTransactionReceipt(lockHash));
-
-    charlie.verify(
-        privateTransactionVerifier.validPrivateTransactionReceipt(lockHash, aliceLockReceipt));
   }
 }

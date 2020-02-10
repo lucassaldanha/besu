@@ -286,6 +286,9 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
               lastBlockNumber = blockNumber;
             }
 
+            System.out.println(blockNumber);
+            System.out.println(lastBlockNumber);
+            System.out.println(blockNumber - lastBlockNumber);
             if (blockNumber - lastBlockNumber > 1) {
               for (long j = lastBlockNumber + 1; j < blockNumber; j++) {
                 final BlockHeader theBlockHeader =
@@ -300,7 +303,7 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
                     Bytes32.wrap(privacyGroupId),
                     currentBlockchain.getBlockHeader(lastBlockNumber).get().getHash());
                 privateStateUpdater.putPrivacyGroupHeadBlockMap(
-                    currentBlockHash, new PrivacyGroupHeadBlockMap(thePrivacyGroupHeadBlockMap));
+                    theBlockHeader.getHash(), new PrivacyGroupHeadBlockMap(thePrivacyGroupHeadBlockMap));
                 privateStateUpdater.commit();
               }
             }
@@ -313,7 +316,31 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
           privateStateUpdater.putAddDataKey(
               privacyGroupId, Bytes32.wrap(Bytes.fromBase64String(addKey)));
           privateStateUpdater.commit();
+          long blockNumber = currentBlockchain.getChainHeadBlockNumber();
+          System.out.println(blockNumber);
+          System.out.println(lastBlockNumber);
+          System.out.println(blockNumber - lastBlockNumber);
+          if (blockNumber - lastBlockNumber > 1) {
+            for (long j = lastBlockNumber + 1; j < blockNumber; j++) {
+              final BlockHeader theBlockHeader =
+                      currentBlockchain.getBlockHeader(j).orElseThrow();
+              final PrivacyGroupHeadBlockMap thePrivacyGroupHeadBlockMap =
+                      privateStateStorage
+                              .getPrivacyGroupHeadBlockMap(theBlockHeader.getHash())
+                              .orElse(PrivacyGroupHeadBlockMap.EMPTY);
+              final PrivateStateStorage.Updater privateStateUpdater1 =
+                      privateStateStorage.updater();
+              thePrivacyGroupHeadBlockMap.put(
+                      Bytes32.wrap(privacyGroupId),
+                      currentBlockchain.getBlockHeader(lastBlockNumber).get().getHash());
+              privateStateUpdater1.putPrivacyGroupHeadBlockMap(
+                      theBlockHeader.getHash(), new PrivacyGroupHeadBlockMap(thePrivacyGroupHeadBlockMap));
+              privateStateUpdater1.commit();
+            }
+          }
         }
+
+
 
       } catch (final EnclaveClientException e) {
         LOG.debug("Can not fetch private transaction payload with key {}", key, e);
