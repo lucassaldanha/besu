@@ -66,8 +66,6 @@ public class PrivacyRequestFactory {
       final Base64String privacyGroupId, final PrivacyNode adder, final List<String> addresses)
       throws IOException, TransactionException {
 
-    privxLockContract(adder, privacyGroupId);
-
     final BigInteger nonce =
         besuClient
             .privGetTransactionCount(adder.getAddress().toHexString(), privacyGroupId)

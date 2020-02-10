@@ -85,6 +85,7 @@ public class EeaSendRawTransaction implements JsonRpcMethod {
       if (privateTransactionMetadataList.size() > 0) {
         final List<PrivateTransactionWithMetadata> privateTransactionWithMetadataList =
             onChainPrivacyController.retrievePrivateTransactions(
+                Bytes32.wrap(privateTransaction.getPrivacyGroupId().get()),
                 privateTransactionMetadataList,
                 enclavePublicKeyProvider.getEnclaveKey(requestContext.getUser()));
         final Bytes bytes =

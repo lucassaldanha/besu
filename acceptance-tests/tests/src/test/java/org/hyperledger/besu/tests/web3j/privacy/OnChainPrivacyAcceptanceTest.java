@@ -231,25 +231,28 @@ public class OnChainPrivacyAcceptanceTest extends PrivacyAcceptanceTestBase {
             eventEmitter.getContractAddress(), alice.getAddress().toString())
         .verify(eventEmitter);
 
+    final String lockHash =
+        alice.execute(privacyTransactions.privxLockContract(privacyGroupId, alice));
+
     final String addHash =
         alice.execute(privacyTransactions.addToPrivacyGroup(privacyGroupId, alice, bob));
 
     final PrivacyGroup expectedGroupAfterBobIsAdded =
-            new PrivacyGroup(
-                    privacyGroupId,
-                    PrivacyGroup.Type.PANTHEON,
-                    "",
-                    "",
-                    Base64String.wrapList(
-                            alice.getEnclaveKey(), bob.getEnclaveKey()));
+        new PrivacyGroup(
+            privacyGroupId,
+            PrivacyGroup.Type.PANTHEON,
+            "",
+            "",
+            Base64String.wrapList(alice.getEnclaveKey(), bob.getEnclaveKey()));
 
     alice.verify(
-            privateTransactionVerifier.validOnChainPrivacyGroupExists(
-                    expectedGroupAfterBobIsAdded));
+        privateTransactionVerifier.validOnChainPrivacyGroupExists(expectedGroupAfterBobIsAdded));
 
     bob.verify(
-            privateTransactionVerifier.validOnChainPrivacyGroupExists(
-                    expectedGroupAfterBobIsAdded));
+        privateTransactionVerifier.validOnChainPrivacyGroupExists(expectedGroupAfterBobIsAdded));
+
+    final String bobLockHash =
+        bob.execute(privacyTransactions.privxLockContract(privacyGroupId, bob));
 
     final String callHash =
         alice.execute(
@@ -262,7 +265,7 @@ public class OnChainPrivacyAcceptanceTest extends PrivacyAcceptanceTestBase {
                 privacyGroupId));
 
     final String bobAddHash =
-            bob.execute(privacyTransactions.addToPrivacyGroup(privacyGroupId, bob, charlie));
+        bob.execute(privacyTransactions.addToPrivacyGroup(privacyGroupId, bob, charlie));
 
     final PrivacyGroup expectedGroupAfterCharlieIsAdded =
         new PrivacyGroup(
@@ -363,6 +366,5 @@ public class OnChainPrivacyAcceptanceTest extends PrivacyAcceptanceTestBase {
 
     charlie.verify(
         privateTransactionVerifier.validPrivateTransactionReceipt(storeHash, expectedReceipt));
-
   }
 }

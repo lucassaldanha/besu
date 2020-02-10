@@ -79,9 +79,16 @@ public class OnChainPrivacyController {
   }
 
   public List<PrivateTransactionWithMetadata> retrievePrivateTransactions(
+      final Bytes32 privacyGroupId,
       final List<PrivateTransactionMetadata> privateTransactionMetadataList,
       final String enclavePublicKey) {
     final ArrayList<PrivateTransactionWithMetadata> privateTransactions = new ArrayList<>();
+    privateStateStorage
+        .getAddDataKey(privacyGroupId)
+        .ifPresent(
+            key -> {
+              privateTransactions.addAll(privacyController.retrieveAddBlob(key.toBase64String()));
+            });
     privateTransactionMetadataList.forEach(
         h -> {
           final Transaction privateMarkerTransaction =
@@ -102,6 +109,7 @@ public class OnChainPrivacyController {
               new PrivateTransactionWithMetadata(PrivateTransaction.readFrom(input), h));
           input.leaveListLenient();
         });
+
     return privateTransactions;
   }
 

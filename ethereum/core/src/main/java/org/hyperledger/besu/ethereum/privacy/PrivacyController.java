@@ -147,11 +147,8 @@ public class PrivacyController {
         throw new RuntimeException();
       }
       if (addDataKey.size() == 1) {
-        final ReceiveResponse addReceiveResponse =
-            enclave.receive(addDataKey.get(0).toBase64String());
         final List<PrivateTransactionWithMetadata> privateTransactionWithMetadataList =
-            deserializeAddToGroupPayload(
-                Bytes.wrap(Base64.getDecoder().decode(addReceiveResponse.getPayload())));
+            retrieveAddBlob(addDataKey.get(0).toBase64String());
         for (int i = 0; i < privateTransactionWithMetadataList.size(); i++) {
           final Hash privacyMarkerTransactionHash =
               privateTransactionWithMetadataList
@@ -182,6 +179,12 @@ public class PrivacyController {
 
       throw e;
     }
+  }
+
+  public List<PrivateTransactionWithMetadata> retrieveAddBlob(final String addDataKey) {
+    final ReceiveResponse addReceiveResponse = enclave.receive(addDataKey);
+    return deserializeAddToGroupPayload(
+        Bytes.wrap(Base64.getDecoder().decode(addReceiveResponse.getPayload())));
   }
 
   public PrivacyGroup createPrivacyGroup(
