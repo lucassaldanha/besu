@@ -34,6 +34,7 @@ import org.hyperledger.besu.ethereum.core.MutableAccount;
 import org.hyperledger.besu.ethereum.core.MutableWorldState;
 import org.hyperledger.besu.ethereum.core.PrivacyParameters;
 import org.hyperledger.besu.ethereum.core.ProcessableBlockHeader;
+import org.hyperledger.besu.ethereum.core.Transaction;
 import org.hyperledger.besu.ethereum.core.Wei;
 import org.hyperledger.besu.ethereum.core.WorldUpdater;
 import org.hyperledger.besu.ethereum.debug.TraceOptions;
@@ -223,6 +224,40 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
         for (int i = 0; i < privateTransactionWithMetadataList.size(); i++) {
           final PrivateTransactionWithMetadata privateTransactionWithMetadata =
               privateTransactionWithMetadataList.get(i);
+
+          // get the correct public state to rehydrate this
+          final Hash privacyMarkerTransactionHash =
+              privateTransactionWithMetadata
+                  .getPrivateTransactionMetadata()
+                  .getPrivacyMarkerTransactionHash();
+          final TransactionLocation markerTransactionLocation =
+              currentBlockchain.getTransactionLocation(privacyMarkerTransactionHash).orElseThrow();
+          final BlockHeader blockHeader =
+              currentBlockchain
+                  .getBlockHeader(markerTransactionLocation.getBlockHash())
+                  .orElseThrow();
+
+          final BlockHeader parentBlockHeader =
+              currentBlockchain.getBlockHeader(blockHeader.getParentHash()).orElseThrow();
+
+          // I need to access the world state from the public world state archive
+          final Hash initialStateRoot = parentBlockHeader.getStateRoot();
+
+          // There are the transaction that need to be run in the context of the world state with
+          // state root initialStateRoot
+          final List<Transaction> transactionsToRun =
+              currentBlockchain
+                  .getBlockBody(markerTransactionLocation.getBlockHash())
+                  .get()
+                  .getTransactions()
+                  .subList(0, markerTransactionLocation.getTransactionIndex() - 1);
+
+          // FIXME: 1. Get the public state archive <- this is possible to pass into the precompile
+          // but a little ugly
+
+          // FIXME: 2. Get the public transaction process <- I need this to simulate
+          // transactionsToRun and build the correct public world view for the rehydration.
+
           final PrivateTransactionProcessor.Result result =
               privateTransactionProcessor.processTransaction(
                   currentBlockchain,
@@ -253,21 +288,12 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
           // further down
 
           if (messageFrame.isPersistingState()) {
-            final TransactionLocation markerTransactionLocation =
-                currentBlockchain
-                    .getTransactionLocation(
-                        privateTransactionWithMetadata
-                            .getPrivateTransactionMetadata()
-                            .getPrivacyMarkerTransactionHash())
-                    .orElseThrow();
             final PrivacyGroupHeadBlockMap temp =
                 privateStateStorage
                     .getPrivacyGroupHeadBlockMap(markerTransactionLocation.getBlockHash())
                     .orElse(PrivacyGroupHeadBlockMap.EMPTY);
             persistePrivateState(
-                privateTransactionWithMetadata
-                    .getPrivateTransactionMetadata()
-                    .getPrivacyMarkerTransactionHash(),
+                privacyMarkerTransactionHash,
                 markerTransactionLocation.getBlockHash(),
                 privateTransactionWithMetadata.getPrivateTransaction(),
                 privacyGroupId,
@@ -275,11 +301,6 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
                 disposablePrivateState,
                 privateWorldStateUpdater,
                 result);
-
-            final BlockHeader blockHeader =
-                currentBlockchain
-                    .getBlockHeader(markerTransactionLocation.getBlockHash())
-                    .orElseThrow();
             final long blockNumber = blockHeader.getNumber();
 
             if (lastBlockNumber == -1) {
