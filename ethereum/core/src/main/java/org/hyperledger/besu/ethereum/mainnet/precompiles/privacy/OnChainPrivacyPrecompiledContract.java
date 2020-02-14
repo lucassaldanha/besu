@@ -24,7 +24,6 @@ import org.hyperledger.besu.enclave.EnclaveIOException;
 import org.hyperledger.besu.enclave.EnclaveServerException;
 import org.hyperledger.besu.enclave.types.ReceiveResponse;
 import org.hyperledger.besu.ethereum.chain.Blockchain;
-import org.hyperledger.besu.ethereum.chain.TransactionLocation;
 import org.hyperledger.besu.ethereum.core.Address;
 import org.hyperledger.besu.ethereum.core.BlockHeader;
 import org.hyperledger.besu.ethereum.core.DefaultEvmAccount;
@@ -34,7 +33,6 @@ import org.hyperledger.besu.ethereum.core.MutableAccount;
 import org.hyperledger.besu.ethereum.core.MutableWorldState;
 import org.hyperledger.besu.ethereum.core.PrivacyParameters;
 import org.hyperledger.besu.ethereum.core.ProcessableBlockHeader;
-import org.hyperledger.besu.ethereum.core.Transaction;
 import org.hyperledger.besu.ethereum.core.Wei;
 import org.hyperledger.besu.ethereum.core.WorldUpdater;
 import org.hyperledger.besu.ethereum.debug.TraceOptions;
@@ -43,7 +41,6 @@ import org.hyperledger.besu.ethereum.privacy.PrivateStateRootResolver;
 import org.hyperledger.besu.ethereum.privacy.PrivateTransaction;
 import org.hyperledger.besu.ethereum.privacy.PrivateTransactionProcessor;
 import org.hyperledger.besu.ethereum.privacy.PrivateTransactionReceipt;
-import org.hyperledger.besu.ethereum.privacy.PrivateTransactionWithMetadata;
 import org.hyperledger.besu.ethereum.privacy.Restriction;
 import org.hyperledger.besu.ethereum.privacy.group.OnChainGroupManagement;
 import org.hyperledger.besu.ethereum.privacy.storage.PrivacyGroupHeadBlockMap;
@@ -57,9 +54,7 @@ import org.hyperledger.besu.ethereum.vm.GasCalculator;
 import org.hyperledger.besu.ethereum.vm.MessageFrame;
 import org.hyperledger.besu.ethereum.worldstate.WorldStateArchive;
 
-import java.util.ArrayList;
 import java.util.Base64;
-import java.util.List;
 import java.util.Optional;
 
 import org.apache.logging.log4j.LogManager;
@@ -127,17 +122,7 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
     }
     final Hash currentBlockHash = ((BlockHeader) currentBlockHeader).getHash();
 
-    final String key;
-    final String addKey;
-    if (input.size() == 32) {
-      key = input.toBase64String();
-      addKey = null;
-    } else if (input.size() == 64) {
-      key = input.slice(0, 32).toBase64String();
-      addKey = input.slice(32, 32).toBase64String();
-    } else {
-      throw new RuntimeException();
-    }
+    final String key = input.slice(0, 32).toBase64String();
 
     final ReceiveResponse receiveResponse;
     try {
@@ -210,134 +195,6 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
 
       privateWorldStateUpdater.commit();
       disposablePrivateState.persist();
-    }
-
-    if (addKey != null && privacyGroupHeadBlockMap.get(privacyGroupId) == null) {
-      final ReceiveResponse addReceiveResponse;
-      try {
-        addReceiveResponse = enclave.receive(addKey);
-        final List<PrivateTransactionWithMetadata> privateTransactionWithMetadataList =
-            deserializeAddToGroupPayload(
-                Bytes.wrap(Base64.getDecoder().decode(addReceiveResponse.getPayload())));
-
-        long lastBlockNumber = -1;
-        for (int i = 0; i < privateTransactionWithMetadataList.size(); i++) {
-          final PrivateTransactionWithMetadata privateTransactionWithMetadata =
-              privateTransactionWithMetadataList.get(i);
-
-          // get the correct public state to rehydrate this
-          final Hash privacyMarkerTransactionHash =
-              privateTransactionWithMetadata
-                  .getPrivateTransactionMetadata()
-                  .getPrivacyMarkerTransactionHash();
-          final TransactionLocation markerTransactionLocation =
-              currentBlockchain.getTransactionLocation(privacyMarkerTransactionHash).orElseThrow();
-          final BlockHeader blockHeader =
-              currentBlockchain
-                  .getBlockHeader(markerTransactionLocation.getBlockHash())
-                  .orElseThrow();
-
-          final BlockHeader parentBlockHeader =
-              currentBlockchain.getBlockHeader(blockHeader.getParentHash()).orElseThrow();
-
-          // I need to access the world state from the public world state archive
-          final Hash initialStateRoot = parentBlockHeader.getStateRoot();
-
-          // There are the transaction that need to be run in the context of the world state with
-          // state root initialStateRoot
-          final List<Transaction> transactionsToRun =
-              currentBlockchain
-                  .getBlockBody(markerTransactionLocation.getBlockHash())
-                  .get()
-                  .getTransactions()
-                  .subList(0, markerTransactionLocation.getTransactionIndex() - 1);
-
-          // FIXME: 1. Get the public state archive <- this is possible to pass into the precompile
-          // but a little ugly
-
-          // FIXME: 2. Get the public transaction process <- I need this to simulate
-          // transactionsToRun and build the correct public world view for the rehydration.
-
-          final PrivateTransactionProcessor.Result result =
-              privateTransactionProcessor.processTransaction(
-                  currentBlockchain,
-                  publicWorldState,
-                  privateWorldStateUpdater,
-                  currentBlockHeader,
-                  privateTransactionWithMetadata.getPrivateTransaction(),
-                  messageFrame.getMiningBeneficiary(),
-                  new DebugOperationTracer(TraceOptions.DEFAULT),
-                  messageFrame.getBlockHashLookup(),
-                  privacyGroupId);
-
-          if (result.isInvalid()
-              || !result.isSuccessful()
-              || !disposablePrivateState
-                  .rootHash()
-                  .equals(
-                      privateTransactionWithMetadata
-                          .getPrivateTransactionMetadata()
-                          .getStateRoot())) {
-            LOG.error(
-                "Failed to rehydrate private transaction {} - Expecting root hash {}, but got {}",
-                privateTransactionWithMetadata.getPrivateTransaction().toString(),
-                disposablePrivateState.rootHash().toHexString(),
-                privateTransactionWithMetadata.getPrivateTransactionMetadata().getStateRoot());
-          }
-          // We need to commit here so we can verify that the last payload locks the group
-          // further down
-
-          if (messageFrame.isPersistingState()) {
-            final PrivacyGroupHeadBlockMap temp =
-                privateStateStorage
-                    .getPrivacyGroupHeadBlockMap(markerTransactionLocation.getBlockHash())
-                    .orElse(PrivacyGroupHeadBlockMap.EMPTY);
-            persistePrivateState(
-                privacyMarkerTransactionHash,
-                markerTransactionLocation.getBlockHash(),
-                privateTransactionWithMetadata.getPrivateTransaction(),
-                privacyGroupId,
-                temp,
-                disposablePrivateState,
-                privateWorldStateUpdater,
-                result);
-            final long blockNumber = blockHeader.getNumber();
-
-            if (lastBlockNumber == -1) {
-              lastBlockNumber = blockNumber;
-            }
-
-            if (blockNumber - lastBlockNumber > 1) {
-              rehydratePrivacyGroupHeadBlockMap(
-                  privacyGroupId, currentBlockchain, lastBlockNumber, blockNumber);
-            }
-
-            lastBlockNumber = blockNumber;
-          }
-        }
-
-        if (messageFrame.isPersistingState()) {
-          final PrivateStateStorage.Updater privateStateUpdater = privateStateStorage.updater();
-          privateStateUpdater.putAddDataKey(
-              privacyGroupId, Bytes32.wrap(Bytes.fromBase64String(addKey)));
-          privateStateUpdater.commit();
-          long blockNumber = currentBlockchain.getChainHeadBlockNumber();
-          if (blockNumber - lastBlockNumber > 1) {
-            rehydratePrivacyGroupHeadBlockMap(
-                privacyGroupId, currentBlockchain, lastBlockNumber, blockNumber);
-          }
-        }
-
-      } catch (final EnclaveClientException e) {
-        LOG.debug("Can not fetch private transaction payload with key {}", key, e);
-        return Bytes.EMPTY;
-      } catch (final EnclaveServerException e) {
-        LOG.error("Enclave is responding but errored perhaps it has a misconfiguration?", e);
-        throw e;
-      } catch (final EnclaveIOException e) {
-        LOG.error("Can not communicate with enclave is it up?", e);
-        throw e;
-      }
     }
 
     // We need the "lock status" of the group for every single transaction but we don't want this
@@ -451,26 +308,6 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
     return result.getOutput();
   }
 
-  protected void rehydratePrivacyGroupHeadBlockMap(
-      final Bytes32 privacyGroupId,
-      final Blockchain currentBlockchain,
-      final long from,
-      final long to) {
-    for (long j = from + 1; j < to; j++) {
-      final BlockHeader theBlockHeader = currentBlockchain.getBlockHeader(j).orElseThrow();
-      final PrivacyGroupHeadBlockMap thePrivacyGroupHeadBlockMap =
-          privateStateStorage
-              .getPrivacyGroupHeadBlockMap(theBlockHeader.getHash())
-              .orElse(PrivacyGroupHeadBlockMap.EMPTY);
-      final PrivateStateStorage.Updater privateStateUpdater = privateStateStorage.updater();
-      thePrivacyGroupHeadBlockMap.put(
-          Bytes32.wrap(privacyGroupId), currentBlockchain.getBlockHeader(from).get().getHash());
-      privateStateUpdater.putPrivacyGroupHeadBlockMap(
-          theBlockHeader.getHash(), new PrivacyGroupHeadBlockMap(thePrivacyGroupHeadBlockMap));
-      privateStateUpdater.commit();
-    }
-  }
-
   protected void persistePrivateState(
       final Hash commitmentHash,
       final Hash currentBlockHash,
@@ -552,18 +389,5 @@ public class OnChainPrivacyPrecompiledContract extends AbstractPrecompiledContra
         new PrivateTransactionMetadata(markerTransactionHash, rootHash));
     privateStateUpdater.putPrivateBlockMetadata(
         Bytes32.wrap(currentBlockHash), Bytes32.wrap(privacyGroupId), privateBlockMetadata);
-  }
-
-  private List<PrivateTransactionWithMetadata> deserializeAddToGroupPayload(
-      final Bytes encodedAddToGroupPayload) {
-    final ArrayList<PrivateTransactionWithMetadata> deserializedResponse = new ArrayList<>();
-    final BytesValueRLPInput bytesValueRLPInput =
-        new BytesValueRLPInput(encodedAddToGroupPayload, false);
-    final int noOfEntries = bytesValueRLPInput.enterList();
-    for (int i = 0; i < noOfEntries; i++) {
-      deserializedResponse.add(PrivateTransactionWithMetadata.readFrom(bytesValueRLPInput));
-    }
-    bytesValueRLPInput.leaveList();
-    return deserializedResponse;
   }
 }

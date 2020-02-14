@@ -321,6 +321,8 @@ public class ProtocolSpecBuilder<T> {
         blockProcessor =
             new PrivacyBlockProcessor(
                 (AbstractBlockProcessor) blockProcessor,
+                protocolSchedule,
+                privacyParameters.getEnclave(),
                 privacyParameters.getPrivateStateStorage());
       }
     }
