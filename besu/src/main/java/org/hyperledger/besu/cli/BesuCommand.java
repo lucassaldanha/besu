@@ -138,6 +138,8 @@ import org.hyperledger.besu.metrics.StandardMetricCategory;
 import org.hyperledger.besu.metrics.prometheus.MetricsConfiguration;
 import org.hyperledger.besu.metrics.vertx.VertxMetricsAdapterFactory;
 import org.hyperledger.besu.nat.NatMethod;
+import org.hyperledger.besu.pki.KeyStoreSupplier;
+import org.hyperledger.besu.pki.PkiConfiguration;
 import org.hyperledger.besu.plugin.data.EnodeURL;
 import org.hyperledger.besu.plugin.services.BesuConfiguration;
 import org.hyperledger.besu.plugin.services.BesuEvents;
@@ -1099,6 +1101,59 @@ public class BesuCommand implements DefaultCommandValues, Runnable {
       description = "Specifies the URL to use for DNS discovery")
   private String discoveryDnsUrl = null;
 
+  @Option(
+      names = {"--pki-enabled"},
+      description = "Enable PKI integration (default: ${DEFAULT-VALUE})",
+      arity = "1")
+  private final Boolean pkiEnabled = false;
+
+  @Option(
+      names = {"--pki-keystore-type"},
+      paramLabel = "<NAME>",
+      description = "PKI service keystore type. Required if PKI Integration is enabled.")
+  @SuppressWarnings({"FieldCanBeFinal", "FieldMayBeFinal"})
+  private String pkiKeyStoreType = PkiConfiguration.DEFAULT_KEYSTORE_TYPE;
+
+  @Option(
+      names = {"--pki-keystore-file"},
+      paramLabel = MANDATORY_FILE_FORMAT_HELP,
+      description = "Keystore containing key/certificate for PKI Integration.")
+  private final Path pkiKeyStoreFile = null;
+
+  @Option(
+      names = {"--pki-keystore-password-file"},
+      paramLabel = MANDATORY_FILE_FORMAT_HELP,
+      description =
+          "File containing password to unlock keystore for PKI Integration. Required if PKI Integration is enabled.")
+  private final Path pkiKeyStorePasswordFile = null;
+
+  @Option(
+      names = {"--pki-keystore-certificate-alias"},
+      paramLabel = "<NAME>",
+      description =
+          "Alias of the certificate that will be included in the blocks proposed by this validator.")
+  @SuppressWarnings({"FieldCanBeFinal", "FieldMayBeFinal"})
+  private String pkiCertificateAlias = PkiConfiguration.DEFAULT_CERTIFICATE_ALIAS;
+
+  @Option(
+      names = {"--pki-truststore-type"},
+      paramLabel = "<NAME>",
+      description = "PKI Integration truststore type.")
+  @SuppressWarnings({"FieldCanBeFinal", "FieldMayBeFinal"})
+  private String pkiTrustStoreType = PkiConfiguration.DEFAULT_KEYSTORE_TYPE;
+
+  @Option(
+      names = {"--pki-truststore-file"},
+      paramLabel = MANDATORY_FILE_FORMAT_HELP,
+      description = "Truststore containing trusted certificates for PKI Integration.")
+  private final Path pkiTrustStoreFile = null;
+
+  @Option(
+      names = {"--pki-truststore-password-file"},
+      paramLabel = MANDATORY_FILE_FORMAT_HELP,
+      description = "File containing password to unlock truststore for PKI Integration.")
+  private final Path pkiTrustStorePasswordFile = null;
+
   private EthNetworkConfig ethNetworkConfig;
   private JsonRpcConfiguration jsonRpcConfiguration;
   private GraphQLConfiguration graphQLConfiguration;
@@ -1114,6 +1169,7 @@ public class BesuCommand implements DefaultCommandValues, Runnable {
   private Vertx vertx;
   private EnodeDnsConfiguration enodeDnsConfiguration;
   private KeyValueStorageProvider keyValueStorageProvider;
+  private Optional<PkiConfiguration> pkiConfiguration;
 
   public BesuCommand(
       final Logger logger,
@@ -1607,6 +1663,10 @@ public class BesuCommand implements DefaultCommandValues, Runnable {
 
     logger.info("Security Module: {}", securityModuleName);
     instantiateSignatureAlgorithmFactory();
+
+    // TODO-lucas clean up injection
+    pkiConfiguration = pkiConfiguration();
+    pkiConfiguration.ifPresent(KeyStoreSupplier::load);
   }
 
   private GoQuorumPrivacyParameters configureGoQuorumPrivacy(
@@ -2716,5 +2776,36 @@ public class BesuCommand implements DefaultCommandValues, Runnable {
     GenesisConfigOptions options = readGenesisConfigOptions();
 
     return options.getEcCurve();
+  }
+
+  private Optional<PkiConfiguration> pkiConfiguration() {
+    if (!pkiEnabled) {
+      return Optional.empty();
+    }
+
+    if (pkiKeyStoreType == null) {
+      throw new ParameterException(
+          commandLine, "Keystore type is required when p2p SSL is enabled");
+    }
+
+    if (pkiKeyStorePasswordFile == null) {
+      throw new ParameterException(
+          commandLine,
+          "File containing password to unlock keystore is required when p2p SSL is enabled");
+    }
+
+    return Optional.of(
+        new PkiConfiguration.Builder()
+            .withKeyStoreType(pkiKeyStoreType)
+            .withKeyStorePath(pkiKeyStoreFile)
+            .withKeyStorePasswordSupplier(new FileBasedPasswordProvider(pkiKeyStorePasswordFile))
+            .withCertificateAlias(pkiCertificateAlias)
+            .withTrustStoreType(pkiTrustStoreType)
+            .withTrustStorePath(pkiTrustStoreFile)
+            .withTrustStorePasswordSupplier(
+                null == pkiTrustStorePasswordFile
+                    ? null
+                    : new FileBasedPasswordProvider(pkiTrustStorePasswordFile))
+            .build());
   }
 }

@@ -76,6 +76,7 @@ import org.hyperledger.besu.util.Subscribers;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
@@ -262,7 +263,8 @@ public class IbftBesuControllerBuilder extends BesuControllerBuilder {
             new BftValidatorOverrides(ibftValidatorForkMap)),
         new VoteProposer(),
         epochManager,
-        blockInterface);
+        blockInterface,
+        Optional.empty());
   }
 
   private Map<Long, List<Address>> convertIbftForks(final List<BftFork> bftForks) {

@@ -71,11 +71,14 @@ import org.hyperledger.besu.ethereum.eth.transactions.TransactionPool;
 import org.hyperledger.besu.ethereum.mainnet.ProtocolSchedule;
 import org.hyperledger.besu.ethereum.p2p.config.SubProtocolConfiguration;
 import org.hyperledger.besu.ethereum.worldstate.WorldStateArchive;
+import org.hyperledger.besu.pki.KeyStoreSupplier;
+import org.hyperledger.besu.pki.keystore.KeyStoreWrapper;
 import org.hyperledger.besu.util.Subscribers;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
@@ -256,6 +259,12 @@ public class QbftBesuControllerBuilder extends BesuControllerBuilder {
     final Map<Long, List<Address>> bftValidatorForkMap =
         convertBftForks(configOptions.getTransitions().getQbftForks());
 
+    // TODO-lucas fix this mess
+    Optional<KeyStoreWrapper> keyStoreWrapper =
+        KeyStoreSupplier.KEYSTORE == null
+            ? Optional.empty()
+            : Optional.of(KeyStoreSupplier.KEYSTORE);
+
     return new BftContext(
         new ForkingVoteTallyCache(
             blockchain,
@@ -265,7 +274,8 @@ public class QbftBesuControllerBuilder extends BesuControllerBuilder {
             new BftValidatorOverrides(bftValidatorForkMap)),
         new VoteProposer(),
         epochManager,
-        blockInterface);
+        blockInterface,
+        keyStoreWrapper);
   }
 
   private Map<Long, List<Address>> convertBftForks(final List<BftFork> bftForks) {

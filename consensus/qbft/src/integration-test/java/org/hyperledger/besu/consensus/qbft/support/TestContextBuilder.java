@@ -319,7 +319,8 @@ public class TestContextBuilder {
         new ProtocolContext(
             blockChain,
             worldStateArchive,
-            new BftContext(voteTallyCache, voteProposer, epochManager, blockInterface));
+            new BftContext(
+                voteTallyCache, voteProposer, epochManager, blockInterface, Optional.empty()));
 
     final PendingTransactions pendingTransactions =
         new PendingTransactions(

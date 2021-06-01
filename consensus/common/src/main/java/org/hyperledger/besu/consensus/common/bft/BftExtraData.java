@@ -31,6 +31,7 @@ public class BftExtraData implements ParsedExtraData {
   private final Collection<Address> validators;
   private final Optional<Vote> vote;
   private final int round;
+  private final Optional<Bytes> cms;
 
   public BftExtraData(
       final Bytes vanityData,
@@ -38,14 +39,27 @@ public class BftExtraData implements ParsedExtraData {
       final Optional<Vote> vote,
       final int round,
       final Collection<Address> validators) {
+    this(vanityData, seals, vote, round, validators, Optional.empty());
+  }
+
+  public BftExtraData(
+      final Bytes vanityData,
+      final Collection<SECPSignature> seals,
+      final Optional<Vote> vote,
+      final int round,
+      final Collection<Address> validators,
+      final Optional<Bytes> cms) {
     checkNotNull(vanityData);
     checkNotNull(seals);
     checkNotNull(validators);
+    checkNotNull(cms);
+
     this.vanityData = vanityData;
     this.seals = seals;
     this.validators = validators;
     this.vote = vote;
     this.round = round;
+    this.cms = cms;
   }
 
   public Bytes getVanityData() {
@@ -66,5 +80,9 @@ public class BftExtraData implements ParsedExtraData {
 
   public int getRound() {
     return round;
+  }
+
+  public Optional<Bytes> getCms() {
+    return cms;
   }
 }
