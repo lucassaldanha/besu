@@ -18,6 +18,9 @@ import org.hyperledger.besu.consensus.common.EpochManager;
 import org.hyperledger.besu.consensus.common.PoaContext;
 import org.hyperledger.besu.consensus.common.VoteProposer;
 import org.hyperledger.besu.consensus.common.VoteTallyCache;
+import org.hyperledger.besu.pki.keystore.KeyStoreWrapper;
+
+import java.util.Optional;
 
 /** Holds the BFT specific mutable state. */
 public class BftContext implements PoaContext {
@@ -26,16 +29,19 @@ public class BftContext implements PoaContext {
   private final VoteProposer voteProposer;
   private final EpochManager epochManager;
   private final BftBlockInterface blockInterface;
+  private final Optional<KeyStoreWrapper> keyStore;
 
   public BftContext(
       final VoteTallyCache voteTallyCache,
       final VoteProposer voteProposer,
       final EpochManager epochManager,
-      final BftBlockInterface blockInterface) {
+      final BftBlockInterface blockInterface,
+      final Optional<KeyStoreWrapper> keyStore) {
     this.voteTallyCache = voteTallyCache;
     this.voteProposer = voteProposer;
     this.epochManager = epochManager;
     this.blockInterface = blockInterface;
+    this.keyStore = keyStore;
   }
 
   public VoteTallyCache getVoteTallyCache() {
@@ -48,6 +54,10 @@ public class BftContext implements PoaContext {
 
   public EpochManager getEpochManager() {
     return epochManager;
+  }
+
+  public Optional<KeyStoreWrapper> getKeyStore() {
+    return keyStore;
   }
 
   @Override

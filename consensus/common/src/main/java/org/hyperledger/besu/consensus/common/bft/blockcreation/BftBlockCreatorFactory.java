@@ -114,7 +114,8 @@ public class BftBlockCreatorFactory {
             Collections.emptyList(),
             toVote(proposal),
             round,
-            validators);
+            validators,
+            Optional.empty());
 
     return bftExtraDataCodec.encode(extraData);
   }

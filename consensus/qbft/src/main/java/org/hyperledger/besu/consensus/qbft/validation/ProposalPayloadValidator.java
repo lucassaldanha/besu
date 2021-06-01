@@ -14,15 +14,23 @@
  */
 package org.hyperledger.besu.consensus.qbft.validation;
 
+import org.hyperledger.besu.consensus.common.bft.BftBlockHeaderFunctions;
+import org.hyperledger.besu.consensus.common.bft.BftContext;
+import org.hyperledger.besu.consensus.common.bft.BftExtraData;
 import org.hyperledger.besu.consensus.common.bft.ConsensusRoundIdentifier;
 import org.hyperledger.besu.consensus.common.bft.payload.SignedData;
+import org.hyperledger.besu.consensus.qbft.QbftExtraDataCodec;
 import org.hyperledger.besu.consensus.qbft.payload.ProposalPayload;
 import org.hyperledger.besu.ethereum.BlockValidator;
 import org.hyperledger.besu.ethereum.BlockValidator.BlockProcessingOutputs;
 import org.hyperledger.besu.ethereum.ProtocolContext;
 import org.hyperledger.besu.ethereum.core.Address;
 import org.hyperledger.besu.ethereum.core.Block;
+import org.hyperledger.besu.ethereum.core.Hash;
 import org.hyperledger.besu.ethereum.mainnet.HeaderValidationMode;
+import org.hyperledger.besu.pki.KeyStoreSupplier;
+import org.hyperledger.besu.pki.cms.CmsValidator;
+import org.hyperledger.besu.pki.keystore.KeyStoreWrapper;
 
 import java.util.Optional;
 
@@ -72,6 +80,34 @@ public class ProposalPayloadValidator {
     if (block.getHeader().getNumber() != payload.getRoundIdentifier().getSequenceNumber()) {
       LOG.info("{}: block number does not match sequence number", ERROR_PREFIX);
       return false;
+    }
+
+    /*
+     Validate CMS in block header
+    */
+    final BftExtraData extraData =
+        protocolContext
+            .getConsensusState(BftContext.class)
+            .getBlockInterface()
+            .getExtraData(block.getHeader());
+
+    final Optional<KeyStoreWrapper> keyStore =
+        protocolContext.getConsensusState(BftContext.class).getKeyStore();
+    if (keyStore.isPresent() && extraData.getCms().isPresent()) {
+      final Hash proposedBlockHash =
+          BftBlockHeaderFunctions.forOnChainBlock(new QbftExtraDataCodec()).hash(block.getHeader());
+
+      LOG.info(">>> Validating CMS for block {}", proposedBlockHash);
+
+      // TODO how to inject the truststore
+      final CmsValidator cmsValidator = new CmsValidator(KeyStoreSupplier.TRUSTSTORE);
+
+      if (!cmsValidator.validate(extraData.getCms().get(), proposedBlockHash)) {
+        LOG.info(">>> CMS Validation INVALID for block {}", proposedBlockHash);
+        return false;
+      } else {
+        LOG.info(">>> CMS Validation VALID for block {}", proposedBlockHash);
+      }
     }
 
     return true;

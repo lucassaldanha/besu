@@ -25,6 +25,7 @@ import org.hyperledger.besu.consensus.common.VoteTallyCache;
 import org.hyperledger.besu.ethereum.core.Address;
 
 import java.util.Collection;
+import java.util.Optional;
 
 public class BftContextBuilder {
 
@@ -34,11 +35,14 @@ public class BftContextBuilder {
     final VoteTally mockVoteTally = mock(VoteTally.class, withSettings().lenient());
     final BftBlockInterface mockBftBlockInterface =
         mock(BftBlockInterface.class, withSettings().lenient());
+
     when(bftContext.getVoteTallyCache()).thenReturn(mockCache);
     when(mockCache.getVoteTallyAfterBlock(any())).thenReturn(mockVoteTally);
     when(mockVoteTally.getValidators()).thenReturn(validators);
     when(bftContext.getVoteProposer()).thenReturn(new VoteProposer());
     when(bftContext.getBlockInterface()).thenReturn(mockBftBlockInterface);
+    when(bftContext.getKeyStore()).thenReturn(Optional.empty());
+
     return bftContext;
   }
 
@@ -49,12 +53,15 @@ public class BftContextBuilder {
     final VoteTally mockVoteTally = mock(VoteTally.class, withSettings().lenient());
     final BftBlockInterface mockBftBlockInterface =
         mock(BftBlockInterface.class, withSettings().lenient());
+
     when(bftContext.getVoteTallyCache()).thenReturn(mockCache);
     when(mockCache.getVoteTallyAfterBlock(any())).thenReturn(mockVoteTally);
     when(mockVoteTally.getValidators()).thenReturn(validators);
     when(bftContext.getVoteProposer()).thenReturn(new VoteProposer());
     when(bftContext.getBlockInterface()).thenReturn(mockBftBlockInterface);
     when(mockBftBlockInterface.getExtraData(any())).thenReturn(bftExtraData);
+    when(bftContext.getKeyStore()).thenReturn(Optional.empty());
+
     return bftContext;
   }
 
@@ -63,11 +70,13 @@ public class BftContextBuilder {
     final BftContext bftContext = mock(BftContext.class, withSettings().lenient());
     final VoteTallyCache mockCache = mock(VoteTallyCache.class, withSettings().lenient());
     final VoteTally mockVoteTally = mock(VoteTally.class, withSettings().lenient());
+
     when(bftContext.getVoteTallyCache()).thenReturn(mockCache);
     when(mockCache.getVoteTallyAfterBlock(any())).thenReturn(mockVoteTally);
     when(mockVoteTally.getValidators()).thenReturn(validators);
     when(bftContext.getVoteProposer()).thenReturn(new VoteProposer());
     when(bftContext.getBlockInterface()).thenReturn(new BftBlockInterface(bftExtraDataCodec));
+    when(bftContext.getKeyStore()).thenReturn(Optional.empty());
 
     return bftContext;
   }

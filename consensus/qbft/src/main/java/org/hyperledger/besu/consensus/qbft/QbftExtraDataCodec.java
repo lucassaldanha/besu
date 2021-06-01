@@ -56,7 +56,8 @@ public class QbftExtraDataCodec extends BftExtraDataCodec {
                 Collections.emptyList(),
                 Optional.empty(),
                 0,
-                addresses));
+                addresses,
+                Optional.empty()));
   }
 
   public static String createGenesisExtraDataString(final List<Address> validators) {
@@ -87,9 +88,20 @@ public class QbftExtraDataCodec extends BftExtraDataCodec {
     final List<SECPSignature> seals =
         rlpInput.readList(
             rlp -> SignatureAlgorithmFactory.getInstance().decodeSignature(rlp.readBytes()));
+
+    final Optional<Bytes> cms;
+    if (rlpInput.nextIsList() && rlpInput.nextSize() == 0) {
+      cms = Optional.empty();
+      rlpInput.skipNext();
+    } else {
+      rlpInput.enterList();
+      cms = Optional.of(rlpInput.readBytes());
+      rlpInput.leaveList();
+    }
+
     rlpInput.leaveList();
 
-    return new BftExtraData(vanityData, seals, vote, round, validators);
+    return new BftExtraData(vanityData, seals, vote, round, validators, cms);
   }
 
   @Override
@@ -117,6 +129,21 @@ public class QbftExtraDataCodec extends BftExtraDataCodec {
       encoder.writeIntScalar(0);
       encoder.writeEmptyList();
     }
+
+    // TODO-lucas think about these rules
+    if (encodingType == EncodingType.ALL) {
+      if (bftExtraData.getCms().isPresent()) {
+        Bytes cmsBytes = bftExtraData.getCms().get();
+        encoder.startList();
+        encoder.writeBytes(cmsBytes);
+        encoder.endList();
+      } else {
+        encoder.writeEmptyList();
+      }
+    } else {
+      encoder.writeEmptyList();
+    }
+
     encoder.endList();
 
     return encoder.encoded();

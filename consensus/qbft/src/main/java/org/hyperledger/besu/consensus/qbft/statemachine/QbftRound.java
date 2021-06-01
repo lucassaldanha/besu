@@ -40,9 +40,14 @@ import org.hyperledger.besu.ethereum.ProtocolContext;
 import org.hyperledger.besu.ethereum.chain.MinedBlockObserver;
 import org.hyperledger.besu.ethereum.core.Block;
 import org.hyperledger.besu.ethereum.core.BlockHeader;
+import org.hyperledger.besu.ethereum.core.BlockHeaderBuilder;
+import org.hyperledger.besu.ethereum.core.BlockHeaderFunctions;
 import org.hyperledger.besu.ethereum.core.BlockImporter;
 import org.hyperledger.besu.ethereum.core.Hash;
 import org.hyperledger.besu.ethereum.mainnet.HeaderValidationMode;
+import org.hyperledger.besu.pki.KeyStoreSupplier;
+import org.hyperledger.besu.pki.cms.CmsCreator;
+import org.hyperledger.besu.pki.keystore.KeyStoreWrapper;
 import org.hyperledger.besu.plugin.services.securitymodule.SecurityModuleException;
 import org.hyperledger.besu.util.Subscribers;
 
@@ -52,6 +57,7 @@ import java.util.Optional;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.tuweni.bytes.Bytes;
 
 public class QbftRound {
 
@@ -87,7 +93,6 @@ public class QbftRound {
     this.messageFactory = messageFactory;
     this.transmitter = transmitter;
     this.bftExtraDataCodec = bftExtraDataCodec;
-
     roundTimer.startTimer(getRoundIdentifier());
   }
 
@@ -99,7 +104,47 @@ public class QbftRound {
     final Block block = blockCreator.createBlock(headerTimeStampSeconds);
     LOG.debug("Creating proposed block. round={}", roundState.getRoundIdentifier());
     LOG.trace("Creating proposed block blockHeader={}", block.getHeader());
-    updateStateWithProposalAndTransmit(block, emptyList(), emptyList());
+
+    /*
+     If KeyStoreWrapper exists, we are operating in "PKI" mode. We need to add the "stamp" to the
+     proposed block header
+    */
+    final Optional<KeyStoreWrapper> keyStore =
+        protocolContext.getConsensusState(BftContext.class).getKeyStore();
+    final Block blockToPropagate =
+        keyStore.map(keyStoreWrapper -> replaceCmsInBlock(block, keyStoreWrapper)).orElse(block);
+
+    updateStateWithProposalAndTransmit(blockToPropagate, emptyList(), emptyList());
+  }
+
+  private Block replaceCmsInBlock(final Block block, final KeyStoreWrapper keyStore) {
+    final String certificateAlias = KeyStoreSupplier.PKI_CONFIG.getCertificateAlias();
+    final CmsCreator cmsCreator = new CmsCreator(keyStore, certificateAlias);
+
+    final BlockHeaderFunctions blockHeaderFunctions =
+        BftBlockHeaderFunctions.forOnChainBlock(bftExtraDataCodec);
+    final Hash hash = blockHeaderFunctions.hash(block.getHeader());
+
+    LOG.info(">>> Creating CMS for block {}", hash);
+    final Bytes cms = cmsCreator.create(hash);
+
+    final BftExtraData prevExtraData = bftExtraDataCodec.decode(block.getHeader());
+    final BftExtraData substituteExtraData =
+        new BftExtraData(
+            prevExtraData.getVanityData(),
+            prevExtraData.getSeals(),
+            prevExtraData.getVote(),
+            prevExtraData.getRound(),
+            prevExtraData.getValidators(),
+            Optional.of(cms));
+
+    final BlockHeaderBuilder headerBuilder = BlockHeaderBuilder.fromHeader(block.getHeader());
+    headerBuilder
+        .extraData(bftExtraDataCodec.encode(substituteExtraData))
+        .blockHeaderFunctions(blockHeaderFunctions);
+    final BlockHeader newHeader = headerBuilder.buildBlockHeader();
+
+    return new Block(newHeader, block.getBody());
   }
 
   public void startRoundWith(
