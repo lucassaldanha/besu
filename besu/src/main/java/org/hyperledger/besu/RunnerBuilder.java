@@ -78,6 +78,7 @@ import org.hyperledger.besu.ethereum.p2p.permissions.PeerPermissions;
 import org.hyperledger.besu.ethereum.p2p.permissions.PeerPermissionsDenylist;
 import org.hyperledger.besu.ethereum.p2p.rlpx.wire.Capability;
 import org.hyperledger.besu.ethereum.p2p.rlpx.wire.SubProtocol;
+import org.hyperledger.besu.ethereum.p2p.ssl.config.SSLConfiguration;
 import org.hyperledger.besu.ethereum.permissioning.AccountLocalConfigPermissioningController;
 import org.hyperledger.besu.ethereum.permissioning.NodeLocalConfigPermissioningController;
 import org.hyperledger.besu.ethereum.permissioning.NodePermissioningControllerFactory;
@@ -143,6 +144,7 @@ public class RunnerBuilder {
   private NetworkingConfiguration networkingConfiguration = NetworkingConfiguration.create();
   private final Collection<Bytes> bannedNodeIds = new ArrayList<>();
   private boolean p2pEnabled = true;
+  private Optional<SSLConfiguration> p2pSSLConfiguration = Optional.empty();
   private boolean discovery;
   private String p2pAdvertisedHost;
   private String p2pListenInterface = NetworkUtility.INADDR_ANY;
@@ -187,6 +189,18 @@ public class RunnerBuilder {
 
   public RunnerBuilder p2pEnabled(final boolean p2pEnabled) {
     this.p2pEnabled = p2pEnabled;
+    return this;
+  }
+
+  public RunnerBuilder p2pSSLConfiguration(final SSLConfiguration p2pSSLConfiguration) {
+    this.p2pSSLConfiguration = Optional.of(p2pSSLConfiguration);
+    return this;
+  }
+
+  public RunnerBuilder p2pSSLConfiguration(final Optional<SSLConfiguration> p2pSSLConfiguration) {
+    if (null != p2pSSLConfiguration) {
+      this.p2pSSLConfiguration = p2pSSLConfiguration;
+    }
     return this;
   }
 
@@ -442,6 +456,7 @@ public class RunnerBuilder {
                 .randomPeerPriority(randomPeerPriority)
                 .storageProvider(storageProvider)
                 .forkIdSupplier(forkIdSupplier)
+                .p2pSSLConfiguration(p2pSSLConfiguration)
                 .build();
 
     final NetworkRunner networkRunner =

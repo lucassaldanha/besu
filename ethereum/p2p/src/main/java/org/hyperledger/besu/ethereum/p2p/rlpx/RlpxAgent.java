@@ -32,8 +32,10 @@ import org.hyperledger.besu.ethereum.p2p.rlpx.connections.PeerConnectionEvents;
 import org.hyperledger.besu.ethereum.p2p.rlpx.connections.PeerRlpxPermissions;
 import org.hyperledger.besu.ethereum.p2p.rlpx.connections.RlpxConnection;
 import org.hyperledger.besu.ethereum.p2p.rlpx.connections.netty.NettyConnectionInitializer;
+import org.hyperledger.besu.ethereum.p2p.rlpx.connections.netty.NettySSLConnectionInitializer;
 import org.hyperledger.besu.ethereum.p2p.rlpx.wire.Capability;
 import org.hyperledger.besu.ethereum.p2p.rlpx.wire.messages.DisconnectMessage.DisconnectReason;
+import org.hyperledger.besu.ethereum.p2p.ssl.config.SSLConfiguration;
 import org.hyperledger.besu.metrics.BesuMetricCategory;
 import org.hyperledger.besu.plugin.data.EnodeURL;
 import org.hyperledger.besu.plugin.services.MetricsSystem;
@@ -557,6 +559,7 @@ public class RlpxAgent {
     private PeerConnectionEvents connectionEvents;
     private boolean randomPeerPriority;
     private MetricsSystem metricsSystem;
+    private Optional<SSLConfiguration> p2pSSLConfiguration;
 
     private Builder() {}
 
@@ -567,9 +570,16 @@ public class RlpxAgent {
         connectionEvents = new PeerConnectionEvents(metricsSystem);
       }
       if (connectionInitializer == null) {
-        connectionInitializer =
-            new NettyConnectionInitializer(
-                nodeKey, config, localNode, connectionEvents, metricsSystem);
+        if (p2pSSLConfiguration.isPresent()) {
+          LOG.debug("SSL Configuration found using NettySSLConnectionInitializer");
+          connectionInitializer =
+              new NettySSLConnectionInitializer(
+                  nodeKey, config, localNode, connectionEvents, metricsSystem, p2pSSLConfiguration);
+        } else {
+          connectionInitializer =
+              new NettyConnectionInitializer(
+                  nodeKey, config, localNode, connectionEvents, metricsSystem);
+        }
       }
 
       final PeerRlpxPermissions rlpxPermissions =
@@ -645,6 +655,11 @@ public class RlpxAgent {
 
     public Builder randomPeerPriority(final boolean randomPeerPriority) {
       this.randomPeerPriority = randomPeerPriority;
+      return this;
+    }
+
+    public Builder p2pSSLConfiguration(final Optional<SSLConfiguration> p2pSSLConfiguration) {
+      this.p2pSSLConfiguration = p2pSSLConfiguration;
       return this;
     }
   }
