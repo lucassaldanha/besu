@@ -28,7 +28,7 @@ import org.hyperledger.besu.ethereum.core.Address;
 import org.hyperledger.besu.ethereum.core.Block;
 import org.hyperledger.besu.ethereum.core.Hash;
 import org.hyperledger.besu.ethereum.mainnet.HeaderValidationMode;
-import org.hyperledger.besu.pki.KeyStoreSupplier;
+import org.hyperledger.besu.pki.config.KeyStoreSupplier;
 import org.hyperledger.besu.pki.cms.CmsValidator;
 import org.hyperledger.besu.pki.keystore.KeyStoreWrapper;
 
@@ -100,7 +100,7 @@ public class ProposalPayloadValidator {
       LOG.info(">>> Validating CMS for block {}", proposedBlockHash);
 
       // TODO how to inject the truststore
-      final CmsValidator cmsValidator = new CmsValidator(KeyStoreSupplier.TRUSTSTORE);
+      final CmsValidator cmsValidator = new CmsValidator(KeyStoreSupplier.TRUSTSTORE, null);
 
       if (!cmsValidator.validate(extraData.getCms().get(), proposedBlockHash)) {
         LOG.info(">>> CMS Validation INVALID for block {}", proposedBlockHash);

@@ -45,7 +45,7 @@ import org.hyperledger.besu.ethereum.core.BlockHeaderFunctions;
 import org.hyperledger.besu.ethereum.core.BlockImporter;
 import org.hyperledger.besu.ethereum.core.Hash;
 import org.hyperledger.besu.ethereum.mainnet.HeaderValidationMode;
-import org.hyperledger.besu.pki.KeyStoreSupplier;
+import org.hyperledger.besu.pki.config.KeyStoreSupplier;
 import org.hyperledger.besu.pki.cms.CmsCreator;
 import org.hyperledger.besu.pki.keystore.KeyStoreWrapper;
 import org.hyperledger.besu.plugin.services.securitymodule.SecurityModuleException;
