@@ -28,10 +28,12 @@ import org.hyperledger.besu.ethereum.core.Address;
 import org.hyperledger.besu.ethereum.core.Block;
 import org.hyperledger.besu.ethereum.core.Hash;
 import org.hyperledger.besu.ethereum.mainnet.HeaderValidationMode;
-import org.hyperledger.besu.pki.config.KeyStoreSupplier;
 import org.hyperledger.besu.pki.cms.CmsValidator;
+import org.hyperledger.besu.pki.config.KeyStoreSupplier;
 import org.hyperledger.besu.pki.keystore.KeyStoreWrapper;
 
+import java.security.cert.CertStore;
+import java.security.cert.CollectionCertStoreParameters;
 import java.util.Optional;
 
 import org.apache.logging.log4j.LogManager;
@@ -99,8 +101,18 @@ public class ProposalPayloadValidator {
 
       LOG.info(">>> Validating CMS for block {}", proposedBlockHash);
 
+      CertStore certStore = null;
+      try {
+        certStore =
+            CertStore.getInstance(
+                "Collection",
+                new CollectionCertStoreParameters(KeyStoreSupplier.TRUSTSTORE.getCRLs()));
+      } catch (final Exception e) {
+        throw new RuntimeException("Error reading CRL file", e);
+      }
+
       // TODO how to inject the truststore
-      final CmsValidator cmsValidator = new CmsValidator(KeyStoreSupplier.TRUSTSTORE, null);
+      final CmsValidator cmsValidator = new CmsValidator(KeyStoreSupplier.TRUSTSTORE, certStore);
 
       if (!cmsValidator.validate(extraData.getCms().get(), proposedBlockHash)) {
         LOG.info(">>> CMS Validation INVALID for block {}", proposedBlockHash);

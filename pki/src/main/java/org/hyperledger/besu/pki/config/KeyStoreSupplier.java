@@ -41,7 +41,7 @@ public class KeyStoreSupplier {
               null);
       LOG.info("Keystore loaded successfully!");
     } catch (Exception e) {
-      LOG.error("Error initializing PKI Integration!");
+      LOG.error("Error initializing PKI Integration!", e);
       throw new RuntimeException("Error initializing PKI Integration", e);
     }
 
@@ -51,10 +51,10 @@ public class KeyStoreSupplier {
               configuration.getTrustStoreType(),
               configuration.getTrustStorePath(),
               configuration.getTrustStorePassword(),
-              null);
+              PKI_CONFIG.getCrlFilePath().orElse(null));
       LOG.info("Truststore initialized successfully!");
     } catch (Exception e) {
-      LOG.error("Error initializing PKI Integration!");
+      LOG.error("Error initializing PKI Integration!", e);
       throw new RuntimeException("Error initializing PKI Integration", e);
     }
   }
