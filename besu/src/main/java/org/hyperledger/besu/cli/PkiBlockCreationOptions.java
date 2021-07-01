@@ -30,32 +30,32 @@ import picocli.CommandLine.ParameterException;
 public class PkiBlockCreationOptions {
 
   @Option(
-      names = {"--pki-enabled"},
+      names = {"--pki-block-creation-enabled"},
       description = "Enable PKI integration (default: ${DEFAULT-VALUE})")
   Boolean enabled = false;
 
   @Option(
-      names = {"--pki-keystore-type"},
+      names = {"--pki-block-creation-keystore-type"},
       paramLabel = "<NAME>",
       description = "PKI service keystore type. Required if PKI Integration is enabled.")
   @SuppressWarnings({"FieldCanBeFinal", "FieldMayBeFinal"})
   String keyStoreType = PkiBlockCreationConfiguration.DEFAULT_KEYSTORE_TYPE;
 
   @Option(
-      names = {"--pki-keystore-file"},
+      names = {"--pki-block-creation-keystore-file"},
       paramLabel = MANDATORY_FILE_FORMAT_HELP,
       description = "Keystore containing key/certificate for PKI Integration.")
   Path keyStoreFile = null;
 
   @Option(
-      names = {"--pki-keystore-password-file"},
+      names = {"--pki-block-creation-keystore-password-file"},
       paramLabel = MANDATORY_FILE_FORMAT_HELP,
       description =
           "File containing password to unlock keystore for PKI Integration. Required if PKI Integration is enabled.")
   Path keyStorePasswordFile = null;
 
   @Option(
-      names = {"--pki-keystore-certificate-alias"},
+      names = {"--pki-block-creation-keystore-certificate-alias"},
       paramLabel = "<NAME>",
       description =
           "Alias of the certificate that will be included in the blocks proposed by this validator.")
@@ -63,26 +63,26 @@ public class PkiBlockCreationOptions {
   String certificateAlias = PkiBlockCreationConfiguration.DEFAULT_CERTIFICATE_ALIAS;
 
   @Option(
-      names = {"--pki-truststore-type"},
+      names = {"--pki-block-creation-truststore-type"},
       paramLabel = "<NAME>",
       description = "PKI Integration truststore type.")
   @SuppressWarnings({"FieldCanBeFinal", "FieldMayBeFinal"})
   String trustStoreType = PkiBlockCreationConfiguration.DEFAULT_KEYSTORE_TYPE;
 
   @Option(
-      names = {"--pki-truststore-file"},
+      names = {"--pki-block-creation-truststore-file"},
       paramLabel = MANDATORY_FILE_FORMAT_HELP,
       description = "Truststore containing trusted certificates for PKI Integration.")
   Path trustStoreFile = null;
 
   @Option(
-      names = {"--pki-truststore-password-file"},
+      names = {"--pki-block-creation-truststore-password-file"},
       paramLabel = MANDATORY_FILE_FORMAT_HELP,
       description = "File containing password to unlock truststore for PKI Integration.")
   Path trustStorePasswordFile = null;
 
   @Option(
-      names = {"--pki-crl-file"},
+      names = {"--pki-block-creation-crl-file"},
       paramLabel = MANDATORY_FILE_FORMAT_HELP,
       description = "Certificate revocation list for the PKI Integration.")
   Path crlFile = null;
